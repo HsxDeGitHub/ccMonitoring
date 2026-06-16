@@ -35,8 +35,7 @@ class Monitor:
         # wire tray show callback
         self.tray.set_show_callback(self._on_tray_show)
         self.tray.set_theme_toggle_callback(self._on_toggle_theme)
-        if self._theme != 'dark':
-            self.window.apply_theme(self._theme)
+        self.window.apply_theme(self._theme)
 
         # restore collapsed state
         if self.settings.load_collapsed():
