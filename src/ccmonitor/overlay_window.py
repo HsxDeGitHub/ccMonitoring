@@ -55,7 +55,7 @@ class ClickableLabel(QLabel):
 
 
 class CollapsedTab(QWidget):
-    """Small tab on screen edge when window is collapsed."""
+    """Small tab on screen edge when window is collapsed. Shows one dot per instance."""
     expand_requested = pyqtSignal()
 
     def __init__(self):
@@ -65,31 +65,54 @@ class CollapsedTab(QWidget):
             Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setFixedSize(TAB_W + 2, TAB_H + 2)
         self.setStyleSheet(f'background-color: {BORDER}; border-radius: 6px;')
-        self._dot_color = '#8e8e93'
         self._drag_pos = None
         self._dragged = False
+        self._instances = []
         self._build()
 
     def _build(self):
-        inner = QFrame(self)
-        inner.setObjectName('tabInner')
-        inner.setGeometry(1, 1, TAB_W, TAB_H)
-        inner.setStyleSheet(f'QFrame#tabInner {{ background-color: {BG}; border-radius: 5px; }}')
+        self._inner = QFrame(self)
+        self._inner.setObjectName('tabInner')
+        self._inner.setStyleSheet(f'QFrame#tabInner {{ background-color: {BG}; border-radius: 5px; }}')
 
-        self._dot = QLabel(inner)
-        self._dot.setGeometry(7, 6, 14, 14)
-        self._dot.setStyleSheet(f'background-color: {self._dot_color}; border-radius: 7px;')
+        self._dots_widget = QWidget(self._inner)
+        self._dots_widget.setStyleSheet('background: transparent;')
 
-        arrow = QLabel('▶', inner)
-        arrow.setGeometry(7, 30, 14, 16)
+        arrow = QLabel('▶', self._inner)
         arrow.setStyleSheet(f'color: {TEXT_SEC}; font-size: 10px;')
         arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._arrow = arrow
+        self._resize()
 
-    def set_dot_color(self, color: str):
-        self._dot_color = color
-        self._dot.setStyleSheet(f'background-color: {color}; border-radius: 7px;')
+    def set_dots(self, instances):
+        """Render one dot per instance, max 8."""
+        self._instances = instances[:8]
+        # clear old dots
+        for child in self._dots_widget.children():
+            if isinstance(child, QLabel):
+                child.deleteLater()
+        count = len(self._instances)
+        priority = [InstanceState.ERROR, InstanceState.WAITING,
+                    InstanceState.RUNNING, InstanceState.COMPLETED]
+        dot_instances = sorted(self._instances,
+                               key=lambda i: priority.index(i['state']) if i['state'] in priority else 99)
+        for idx, inst in enumerate(dot_instances):
+            cfg = STATE_CONFIG.get(inst['state'], STATE_CONFIG[InstanceState.RUNNING])
+            dot = QLabel(self._dots_widget)
+            dot.setFixedSize(10, 10)
+            dot.move(idx * 14 + 8, 8)
+            dot.setStyleSheet(f'background-color: {cfg["color"]}; border-radius: 5px;')
+        self._resize()
+
+    def _resize(self):
+        count = max(len(self._instances), 1)
+        w = 14 + count * 14 + (count - 1) * 4 + 8
+        h = TAB_H + 2
+        self.setFixedSize(w, h)
+        self._inner.setGeometry(1, 1, w - 2, TAB_H)
+        self._dots_widget.setGeometry(0, 6, w - 2, 18)
+        self._arrow.setGeometry(8, 30, w - 18, 16)
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -114,7 +137,7 @@ class CollapsedTab(QWidget):
         if ref_x < screen.width() // 2:
             new_x = 0
         else:
-            new_x = screen.width() - TAB_W - 3
+            new_x = screen.width() - self.width()
         new_y = max(0, min(ref_y, screen.height() - TAB_H))
         self.move(new_x, new_y)
 
@@ -230,7 +253,7 @@ class OverlayWindow(QWidget):
         self._tab.snap_to_edge(self.x(), self.y())
         self._tab.expand_requested.connect(self._on_expand)
         if self._instances:
-            self._update_tab_dot()
+            self._update_tab_dots()
         self._tab.show()
 
     def _on_expand(self):
@@ -317,17 +340,10 @@ class OverlayWindow(QWidget):
         self.setFixedHeight(h)
         self._scroll.setGeometry(0, HEADER_HEIGHT, WINDOW_WIDTH, rows * ROW_HEIGHT)
 
-    def _update_tab_dot(self):
+    def _update_tab_dots(self):
         if not self._tab:
             return
-        priority = [InstanceState.ERROR, InstanceState.WAITING,
-                    InstanceState.RUNNING, InstanceState.COMPLETED]
-        color = '#8e8e93'
-        for s in priority:
-            if any(i['state'] == s for i in self._instances):
-                color = STATE_CONFIG[s]['color']
-                break
-        self._tab.set_dot_color(color)
+        self._tab.set_dots(self._instances)
 
     def _keep_on_top(self):
         """Re-assert stays-on-top without activating window."""
