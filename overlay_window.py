@@ -3,20 +3,29 @@
 import tkinter as tk
 from state_engine import InstanceState
 
-
-# Constants
+# Layout
 WINDOW_WIDTH = 380
-ROW_HEIGHT = 32
-HEADER_HEIGHT = 30
+ROW_HEIGHT = 36
+HEADER_HEIGHT = 34
 MAX_VISIBLE_ROWS = 8
-TAB_WIDTH = 36
-TAB_HEIGHT = 80
+TAB_W = 32
+TAB_H = 100
+BTN_SIZE = 12
+
+# Colors (macOS dark palette)
+BG = '#1c1c1e'
+HEADER_BG = '#2c2c2e'
+TEXT = '#f5f5f7'
+TEXT_SEC = '#98989d'
+BORDER = '#38383a'
+ACCENT = '#0a84ff'
+HOVER_BG = '#3a3a3c'
 
 STATE_CONFIG = {
-    InstanceState.RUNNING: {'color': '#22c55e', 'label': 'RUN'},
-    InstanceState.WAITING: {'color': '#eab308', 'label': 'WAIT'},
-    InstanceState.COMPLETED: {'color': '#6b7280', 'label': 'DONE'},
-    InstanceState.ERROR: {'color': '#ef4444', 'label': 'ERR'},
+    InstanceState.RUNNING:  {'color': '#30d158', 'label': '运行中'},
+    InstanceState.WAITING:  {'color': '#ffd60a', 'label': '等待确认'},
+    InstanceState.COMPLETED:{'color': '#8e8e93', 'label': '已完成'},
+    InstanceState.ERROR:    {'color': '#ff453a', 'label': '出错'},
 }
 
 
@@ -25,278 +34,323 @@ class OverlayWindow:
 
     def __init__(self):
         self.root = tk.Tk()
-        self.root.withdraw()  # hide until fully built
+        self.root.withdraw()
 
         self._collapsed = False
-        self._drag_x = 0
-        self._drag_y = 0
         self._instances = []
         self._blink_state = True
-        self._last_tab_side = None
+        self._saved_x = None
+        self._saved_y = None
+        self._saved_w = None
+        self._saved_h = None
 
         self._build_expanded()
         self._build_collapsed()
         self._center_window()
 
-    # ---------- expanded view ----------
+    # ==================================================================
+    # expanded window
+    # ==================================================================
 
     def _build_expanded(self):
-        self._expanded = tk.Toplevel(self.root)
-        self._expanded.overrideredirect(True)
-        self._expanded.attributes('-topmost', True)
-        self._expanded.attributes('-alpha', 0.88)
-        self._expanded.configure(bg='#1e1e2e')
+        w = self._expanded = tk.Toplevel(self.root)
+        w.overrideredirect(True)
+        w.attributes('-topmost', True)
+        w.attributes('-alpha', 0.95)
+        w.configure(bg=BG)
 
-        # Title bar
-        title_bar = tk.Frame(self._expanded, bg='#181825', height=HEADER_HEIGHT)
-        title_bar.pack(fill=tk.X, side=tk.TOP)
-        title_bar.pack_propagate(False)
+        # -- title bar --
+        tb = tk.Frame(w, bg=HEADER_BG, height=HEADER_HEIGHT,
+                      highlightthickness=1, highlightbackground=BORDER,
+                      highlightcolor=BORDER)
+        tb.pack(fill=tk.X, side=tk.TOP)
+        tb.pack_propagate(False)
 
-        title = tk.Label(title_bar, text='CC Monitor', fg='#cdd6f4',
-                         bg='#181825', font=('Menlo', 11, 'bold'))
-        title.pack(side=tk.LEFT, padx=10)
+        title = tk.Label(tb, text='CC Monitor', fg=TEXT, bg=HEADER_BG,
+                         font=('SF Pro Text', 11, 'bold'))
+        title.place(x=12, y=6)
 
-        collapse_btn = tk.Label(title_bar, text='−', fg='#a6adc8',
-                                bg='#181825', font=('Menlo', 14),
-                                cursor='hand2')
-        collapse_btn.pack(side=tk.RIGHT, padx=4)
-        collapse_btn.bind('<Button-1>', lambda e: self.collapse())
+        # close button (red circle)
+        self._close_btn = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
+                                    bg=HEADER_BG, highlightthickness=0,
+                                    cursor='hand2')
+        self._close_btn.place(x=WINDOW_WIDTH - 28, y=11)
+        self._close_btn.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
+                                    fill='#ff453a', outline='')
+        self._close_btn.bind('<ButtonRelease-1>', self._on_close_click)
 
-        close_btn = tk.Label(title_bar, text='×', fg='#a6adc8',
-                             bg='#181825', font=('Menlo', 14),
-                             cursor='hand2')
-        close_btn.pack(side=tk.RIGHT, padx=4)
-        close_btn.bind('<Button-1>', lambda e: self.quit())
+        # collapse button (yellow circle)
+        self._coll_btn = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
+                                   bg=HEADER_BG, highlightthickness=0,
+                                   cursor='hand2')
+        self._coll_btn.place(x=WINDOW_WIDTH - 48, y=11)
+        self._coll_btn.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
+                                   fill='#ffd60a', outline='')
+        self._coll_btn.bind('<ButtonRelease-1>', self._on_collapse_click)
 
-        # Drag support on title bar
-        for w in (title_bar, title):
-            w.bind('<Button-1>', self._start_drag)
-            w.bind('<B1-Motion>', self._on_drag)
+        # -- drag: bind on title bar --
+        tb.bind('<Button-1>', self._drag_start)
+        tb.bind('<B1-Motion>', self._drag_move)
+        title.bind('<Button-1>', self._drag_start)
+        title.bind('<B1-Motion>', self._drag_move)
 
-        # Instance list area (scrollable via canvas)
-        self._list_frame = tk.Frame(self._expanded, bg='#1e1e2e')
-        self._list_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=2)
-        self._list_frame.pack_propagate(False)
+        # -- instance list --
+        self._list_frame = tk.Frame(w, bg=BG)
+        self._list_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
-        self._update_window_height(0)
-        self._expanded.withdraw()
+        self._resize_expanded(0)
+        w.withdraw()
 
-    def _update_window_height(self, row_count):
+    def _resize_expanded(self, row_count):
         rows = max(1, min(row_count, MAX_VISIBLE_ROWS))
-        h = HEADER_HEIGHT + rows * ROW_HEIGHT + 4
+        h = HEADER_HEIGHT + rows * ROW_HEIGHT + 2
         self._expanded.geometry(f'{WINDOW_WIDTH}x{h}')
-        self._keep_on_top()
+        self._lift()
 
-    def _keep_on_top(self):
-        """Force window to stay on top (macOS workaround)."""
-        if not self._collapsed:
-            self._expanded.attributes('-topmost', True)
-            self._expanded.lift()
-        else:
-            self._collapsed_win.attributes('-topmost', True)
-            self._collapsed_win.lift()
-
-    # ---------- collapsed tab ----------
+    # ==================================================================
+    # collapsed tab
+    # ==================================================================
 
     def _build_collapsed(self):
-        self._collapsed_win = tk.Toplevel(self.root)
-        self._collapsed_win.overrideredirect(True)
-        self._collapsed_win.attributes('-topmost', True)
-        self._collapsed_win.attributes('-alpha', 0.85)
-        self._collapsed_win.configure(bg='#181825')
+        w = self._collapsed_win = tk.Toplevel(self.root)
+        w.overrideredirect(True)
+        w.attributes('-topmost', True)
+        w.attributes('-alpha', 0.92)
+        w.configure(bg=BG)
 
-        self._tab_frame = tk.Frame(self._collapsed_win, bg='#181825',
-                                   width=TAB_WIDTH, height=TAB_HEIGHT)
-        self._tab_frame.pack_propagate(False)
-        self._tab_frame.pack()
+        outer = tk.Frame(w, bg=BORDER, width=TAB_W + 2, height=TAB_H + 2)
+        outer.pack_propagate(False)
+        outer.pack()
 
-        self._tab_dot = tk.Canvas(self._tab_frame, width=16, height=16,
-                                  bg='#181825', highlightthickness=0)
-        self._tab_dot.place(x=10, y=12)
+        inner = tk.Frame(outer, bg=BG, width=TAB_W, height=TAB_H)
+        inner.place(x=1, y=1)
 
-        self._tab_arrow = tk.Label(self._tab_frame, text='◀▶', fg='#6c7086',
-                                   bg='#181825', font=('Menlo', 8),
-                                   cursor='hand2')
-        self._tab_arrow.place(x=6, y=55)
-
-        self._tab_frame.bind('<Button-1>', lambda e: self.expand())
+        self._tab_dot = tk.Canvas(inner, width=14, height=14,
+                                  bg=BG, highlightthickness=0,
+                                  cursor='hand2')
+        self._tab_dot.place(x=9, y=14)
         self._tab_dot.bind('<Button-1>', lambda e: self.expand())
-        self._tab_arrow.bind('<Button-1>', lambda e: self.expand())
 
-        # Drag tab frame
-        self._tab_frame.bind('<B1-Motion>', self._on_tab_drag)
-        self._tab_frame.bind('<Button-1>', self._start_tab_drag)
+        arrow = tk.Label(inner, text='▶', fg=TEXT_SEC, bg=BG,
+                         font=('SF Pro Text', 9), cursor='hand2')
+        arrow.place(x=9, y=38)
+        arrow.bind('<Button-1>', lambda e: self.expand())
 
-        self._collapsed_win.withdraw()
+        hint = tk.Label(inner, text='展', fg=TEXT_SEC, bg=BG,
+                        font=('PingFang SC', 7), cursor='hand2')
+        hint.place(x=3, y=60)
+        hint.bind('<Button-1>', lambda e: self.expand())
 
-    def _on_tab_drag(self, event):
-        x = self._collapsed_win.winfo_x() + event.x - self._drag_x
-        y = self._collapsed_win.winfo_y() + event.y - self._drag_y
-        self._collapsed_win.geometry(f'+{x}+{y}')
-        self._last_tab_side = None
-        self._keep_on_top()
+        hint2 = tk.Label(inner, text='开', fg=TEXT_SEC, bg=BG,
+                         font=('PingFang SC', 7), cursor='hand2')
+        hint2.place(x=3, y=74)
+        hint2.bind('<Button-1>', lambda e: self.expand())
 
-    def _start_tab_drag(self, event):
-        self._drag_x = event.x
-        self._drag_y = event.y
-        self._last_tab_side = None
+        # drag support
+        inner.bind('<Button-1>', self._tab_drag_start)
+        inner.bind('<B1-Motion>', self._tab_drag_move)
+        arrow.bind('<Button-1>', self._tab_drag_start)
+        arrow.bind('<B1-Motion>', self._tab_drag_move)
 
-    # ---------- drag support ----------
+        w.withdraw()
 
-    def _start_drag(self, event):
-        self._drag_x = event.x
-        self._drag_y = event.y
+    # ==================================================================
+    # drag — expanded
+    # ==================================================================
 
-    def _on_drag(self, event):
-        x = self._expanded.winfo_x() + event.x - self._drag_x
-        y = self._expanded.winfo_y() + event.y - self._drag_y
+    def _drag_start(self, event):
+        self._drag_x = event.x_root
+        self._drag_y = event.y_root
+
+    def _drag_move(self, event):
+        dx = event.x_root - self._drag_x
+        dy = event.y_root - self._drag_y
+        x = self._expanded.winfo_x() + dx
+        y = self._expanded.winfo_y() + dy
         self._expanded.geometry(f'+{x}+{y}')
-        self._keep_on_top()
+        self._drag_x = event.x_root
+        self._drag_y = event.y_root
+        self._lift()
 
-    # ---------- expand / collapse ----------
+    # ==================================================================
+    # drag — collapsed tab
+    # ==================================================================
+
+    def _tab_drag_start(self, event):
+        self._drag_x = event.x_root
+        self._drag_y = event.y_root
+
+    def _tab_drag_move(self, event):
+        dx = event.x_root - self._drag_x
+        dy = event.y_root - self._drag_y
+        x = self._collapsed_win.winfo_x() + dx
+        y = self._collapsed_win.winfo_y() + dy
+        self._collapsed_win.geometry(f'+{x}+{y}')
+        self._drag_x = event.x_root
+        self._drag_y = event.y_root
+        self._lift()
+
+    # ==================================================================
+    # button handlers
+    # ==================================================================
+
+    def _on_collapse_click(self, event):
+        self.collapse()
+
+    def _on_close_click(self, event):
+        self.quit()
+
+    # ==================================================================
+    # expand / collapse
+    # ==================================================================
 
     def collapse(self):
+        self._saved_x = self._expanded.winfo_x()
+        self._saved_y = self._expanded.winfo_y()
+        self._saved_w = self._expanded.winfo_width()
+        self._saved_h = self._expanded.winfo_height()
         self._expanded.withdraw()
         self._snap_tab_to_edge()
         self._collapsed_win.deiconify()
         self._collapsed = True
-        self._keep_on_top()
+        self._lift()
 
     def expand(self):
         self._collapsed_win.withdraw()
-        tx = self._collapsed_win.winfo_x()
-        ty = self._collapsed_win.winfo_y()
-        self._expanded.geometry(f'+{tx}+{ty}')
+        if self._saved_x is not None:
+            self._expanded.geometry(
+                f'{self._saved_w}x{self._saved_h}+{self._saved_x}+{self._saved_y}')
         self._expanded.deiconify()
         self._collapsed = False
-        self._keep_on_top()
+        self._lift()
 
     def _snap_tab_to_edge(self):
-        """Snap collapsed tab to left or right screen edge."""
-        screen_w = self._collapsed_win.winfo_screenwidth()
-        screen_h = self._collapsed_win.winfo_screenheight()
-        current_x = self._expanded.winfo_x()
-        current_y = self._expanded.winfo_y()
+        sw = self._collapsed_win.winfo_screenwidth()
+        sh = self._collapsed_win.winfo_screenheight()
+        cx = self._saved_x if self._saved_x is not None else sw - WINDOW_WIDTH - 20
+        cy = self._saved_y if self._saved_y is not None else 60
 
-        if current_x < screen_w / 2:
-            new_x = 0
-        else:
-            new_x = screen_w - TAB_WIDTH
-
-        new_y = max(0, min(current_y, screen_h - TAB_HEIGHT))
+        new_x = 0 if cx < sw / 2 else sw - TAB_W - 3
+        new_y = max(0, min(cy, sh - TAB_H))
         self._collapsed_win.geometry(f'+{new_x}+{new_y}')
-        self._keep_on_top()
+        self._lift()
 
-    # ---------- display update ----------
+    # ==================================================================
+    # display
+    # ==================================================================
 
     def update_instances(self, instances):
-        """Refresh the instance list display."""
         self._instances = instances
 
-        # Clear current rows
         for w in self._list_frame.winfo_children():
             w.destroy()
 
-        visible_count = min(len(instances), MAX_VISIBLE_ROWS)
-        self._update_window_height(visible_count)
+        count = min(len(instances), MAX_VISIBLE_ROWS)
+        self._resize_expanded(count)
 
         for i, inst in enumerate(instances[:MAX_VISIBLE_ROWS]):
-            self._draw_instance_row(i, inst)
+            self._draw_row(i, inst)
 
-        # Update collapsed tab dot color
         self._update_tab_dot(instances)
 
-    def _draw_instance_row(self, i, inst):
+    def _draw_row(self, i, inst):
         state = inst['state']
         cfg = STATE_CONFIG.get(state, STATE_CONFIG[InstanceState.RUNNING])
         cwd = inst.get('cwd', '')
-        # Extract short label from last directory component
         dir_name = cwd.rstrip('/').split('/')[-1] if cwd else '?'
-        # Shorten cwd for display
-        if len(cwd) > 40:
-            cwd = '...' + cwd[-37:]
 
-        row = tk.Frame(self._list_frame, bg='#1e1e2e', height=ROW_HEIGHT)
+        if len(cwd) > 45:
+            cwd = '...' + cwd[-42:]
+
+        # alternating row background
+        row_bg = BG if i % 2 == 0 else '#242426'
+
+        row = tk.Frame(self._list_frame, bg=row_bg, height=ROW_HEIGHT)
         row.pack(fill=tk.X, side=tk.TOP)
         row.pack_propagate(False)
 
-        # Status dot
-        dot_size = 10
-        dot = tk.Canvas(row, width=dot_size + 4, height=ROW_HEIGHT,
-                        bg='#1e1e2e', highlightthickness=0)
+        # status dot
+        dot_color = cfg['color']
+        if state == InstanceState.WAITING and not self._blink_state:
+            dot_color = row_bg
+
+        dot = tk.Canvas(row, width=20, height=ROW_HEIGHT,
+                        bg=row_bg, highlightthickness=0)
         dot.pack(side=tk.LEFT)
+        dot.create_oval(5, (ROW_HEIGHT - 10) // 2,
+                        15, (ROW_HEIGHT + 10) // 2,
+                        fill=dot_color, outline='')
 
-        color = cfg['color']
-        if state == InstanceState.WAITING and self._blink_state:
-            color = '#1e1e2e'  # blink off
+        # path text
+        txt = f'{cwd}  ({dir_name})'
+        lbl = tk.Label(row, text=txt, fg=TEXT, bg=row_bg,
+                       font=('SF Mono', 10), anchor=tk.W)
+        lbl.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
 
-        dot.create_oval(2, (ROW_HEIGHT - dot_size) // 2,
-                        dot_size + 2, (ROW_HEIGHT + dot_size) // 2,
-                        fill=color, outline='')
-
-        # CWD label with directory name as prefix
-        display_text = f'{cwd}  ({dir_name})'
-        cwd_label = tk.Label(row, text=display_text, fg='#cdd6f4', bg='#1e1e2e',
-                             font=('Menlo', 10), anchor=tk.W)
-        cwd_label.pack(side=tk.LEFT, padx=4)
-
-        # State label
-        state_label = tk.Label(row, text=cfg['label'], fg=cfg['color'],
-                               bg='#1e1e2e', font=('Menlo', 9))
-        state_label.pack(side=tk.RIGHT, padx=6)
+        # state badge
+        badge = tk.Label(row, text=cfg['label'], fg=cfg['color'], bg=row_bg,
+                         font=('PingFang SC', 9))
+        badge.pack(side=tk.RIGHT, padx=8)
 
     def _update_tab_dot(self, instances):
-        """Set tab dot color to the highest-priority state."""
-        priority_order = [InstanceState.ERROR, InstanceState.WAITING,
-                          InstanceState.RUNNING, InstanceState.COMPLETED]
-        color = '#6b7280'  # default gray
-        for state in priority_order:
-            if any(i['state'] == state for i in instances):
-                color = STATE_CONFIG[state]['color']
+        priority = [InstanceState.ERROR, InstanceState.WAITING,
+                    InstanceState.RUNNING, InstanceState.COMPLETED]
+        color = '#8e8e93'
+        for s in priority:
+            if any(i['state'] == s for i in instances):
+                color = STATE_CONFIG[s]['color']
                 break
-
         self._tab_dot.delete('all')
-        self._tab_dot.create_oval(2, 2, 14, 14, fill=color, outline='')
+        self._tab_dot.create_oval(2, 2, 12, 12, fill=color, outline='')
 
     def toggle_blink(self):
-        """Toggle blink state for WAITING instances. Call from timer."""
         self._blink_state = not self._blink_state
         if self._instances:
             self.update_instances(self._instances)
 
-    def _center_window(self):
-        screen_w = self._expanded.winfo_screenwidth()
-        screen_h = self._expanded.winfo_screenheight()
-        x = screen_w - WINDOW_WIDTH - 20
-        y = 60
-        self._expanded.geometry(f'{WINDOW_WIDTH}x{HEADER_HEIGHT + ROW_HEIGHT + 4}+{x}+{y}')
-        self._keep_on_top()
+    # ==================================================================
+    # helpers
+    # ==================================================================
 
-    # ---------- lifecycle ----------
+    def _lift(self):
+        if self._collapsed:
+            self._collapsed_win.attributes('-topmost', True)
+            self._collapsed_win.lift()
+        else:
+            self._expanded.attributes('-topmost', True)
+            self._expanded.lift()
+
+    def _center_window(self):
+        sw = self._expanded.winfo_screenwidth()
+        x = sw - WINDOW_WIDTH - 20
+        y = 60
+        self._expanded.geometry(
+            f'{WINDOW_WIDTH}x{HEADER_HEIGHT + ROW_HEIGHT + 2}+{x}+{y}')
+        self._lift()
+
+    # ==================================================================
+    # lifecycle
+    # ==================================================================
 
     def show(self):
-        """Show the expanded window and start main loop."""
         self._expanded.deiconify()
         self._collapsed = False
-        self._keep_on_top()
+        self._lift()
 
     def is_collapsed(self):
         return self._collapsed
 
     def is_alive(self):
-        """Check if the user has closed the window."""
         try:
             return self.root.winfo_exists()
         except tk.TclError:
             return False
 
     def process_events(self):
-        """Process pending tkinter events (non-blocking)."""
         self.root.update()
-        self._keep_on_top()
+        self._lift()
 
     def quit(self):
-        """Clean shutdown."""
         try:
             self.root.destroy()
         except tk.TclError:
