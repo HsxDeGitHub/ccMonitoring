@@ -275,6 +275,7 @@ class OverlayWindow(QWidget):
         cwd = inst.get('cwd', '')
         dir_name = cwd.rstrip('/').split('/')[-1] if cwd else '?'
         pid = inst.get('pid', 0)
+        display_name = f'{dir_name} (PID: {pid})'
 
         row = QFrame()
         row.setFixedHeight(ROW_HEIGHT)
@@ -294,7 +295,7 @@ class OverlayWindow(QWidget):
         dot._row_bg = row_bg  # for blink off state
 
         # directory name
-        name_lbl = QLabel(dir_name, row)
+        name_lbl = QLabel(display_name, row)
         name_lbl.setStyleSheet(f'color: {TEXT}; font-size: 11px; background: transparent;')
         name_lbl.move(26, 8)
         name_lbl.setFixedWidth(140)
