@@ -12,7 +12,7 @@ class InstanceState(Enum):
 
 
 # CPU threshold: above this means actively working, below means idle/waiting
-CPU_ACTIVE_THRESHOLD = 5.0
+CPU_ACTIVE_THRESHOLD = 3.0
 # How long to keep dead instances visible (seconds)
 GHOST_TTL = 30
 

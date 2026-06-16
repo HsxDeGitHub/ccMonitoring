@@ -32,7 +32,7 @@ class ProcessScanner:
                     continue
 
                 # Get accurate CPU usage (blocks 0.1s per process)
-                cpu_pct = proc.cpu_percent(interval=0.1) or 0.0
+                cpu_pct = proc.cpu_percent(interval=0.25) or 0.0
 
                 instances.append({
                     'pid': info['pid'],

@@ -258,12 +258,18 @@ class OverlayWindow(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
+        self._row_dots = []
+        self._row_state_labels = []
         for i, inst in enumerate(instances[:MAX_VISIBLE_ROWS]):
-            self._list_layout.insertWidget(i, self._make_row(i, inst))
+            row, dot, state_lbl = self._make_row(i, inst)
+            self._list_layout.insertWidget(i, row)
+            self._row_dots.append((dot, i))
+            self._row_state_labels.append((state_lbl, inst))
 
         self._update_height(min(len(instances), MAX_VISIBLE_ROWS))
+        self._list_widget.update()
 
-    def _make_row(self, i: int, inst: dict) -> QFrame:
+    def _make_row(self, i: int, inst: dict) -> tuple:
         state = inst['state']
         cfg = STATE_CONFIG.get(state, STATE_CONFIG[InstanceState.RUNNING])
         cwd = inst.get('cwd', '')
@@ -274,6 +280,7 @@ class OverlayWindow(QWidget):
         row.setFixedHeight(ROW_HEIGHT)
         row_bg = BG if i % 2 == 0 else '#242426'
         row.setStyleSheet(f'background-color: {row_bg};')
+        row._row_bg = row_bg  # store for blink
 
         # status dot
         dot = QLabel(row)
@@ -283,6 +290,8 @@ class OverlayWindow(QWidget):
         if state == InstanceState.WAITING and not self._blink_state:
             dot_color = row_bg
         dot.setStyleSheet(f'background-color: {dot_color}; border-radius: 4px;')
+        dot._color = cfg['color']
+        dot._row_bg = row_bg  # for blink off state
 
         # directory name
         name_lbl = QLabel(dir_name, row)
@@ -294,11 +303,12 @@ class OverlayWindow(QWidget):
         state_lbl = QLabel(cfg['label'], row)
         state_lbl.setStyleSheet(f'color: {cfg["color"]}; font-size: 9px; background: transparent;')
         state_lbl.move(WINDOW_WIDTH - 60, 10)
+        state_lbl._color = cfg['color']
 
         # tooltip
         row.setToolTip(f'{cwd}\nPID: {pid}')
 
-        return row
+        return row, dot, state_lbl
 
     def _update_height(self, row_count):
         rows = max(1, row_count)
@@ -324,8 +334,12 @@ class OverlayWindow(QWidget):
 
     def toggle_blink(self):
         self._blink_state = not self._blink_state
-        if self._instances:
-            self.update_instances(self._instances)
+        for dot, i in getattr(self, '_row_dots', []):
+            if i < len(self._instances):
+                inst = self._instances[i]
+                if inst['state'] == InstanceState.WAITING:
+                    color = dot._color if self._blink_state else dot._row_bg
+                    dot.setStyleSheet(f'background-color: {color}; border-radius: 4px;')
 
     def _center(self):
         screen = QApplication.primaryScreen().availableGeometry()
