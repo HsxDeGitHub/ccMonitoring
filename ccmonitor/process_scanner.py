@@ -40,6 +40,17 @@ class ProcessScanner:
                 if 'monitor.py' in cmdline_str:
                     continue
 
+                # Skip subagent processes: if parent is also a claude process,
+                # this is a child/subagent, not a top-level session.
+                try:
+                    parent = proc.parent()
+                    if parent:
+                        parent_cmdline = ' '.join(parent.cmdline())
+                        if 'claude' in parent_cmdline.lower():
+                            continue
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
                 # On Unix, only include processes attached to a terminal.
                 # terminal() is Unix-only; Windows skips this check.
                 if hasattr(proc, 'terminal'):
