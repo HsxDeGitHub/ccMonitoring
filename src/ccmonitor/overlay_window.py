@@ -51,6 +51,7 @@ HEADER_BG = THEMES['dark']['HEADER_BG']
 TEXT = THEMES['dark']['TEXT']
 TEXT_SEC = THEMES['dark']['TEXT_SEC']
 BORDER = THEMES['dark']['BORDER']
+ROW_BG_ALT = THEMES['dark']['ROW_BG_ALT']
 
 STATE_CONFIG = {
     InstanceState.RUNNING:  {'color': THEMES['dark']['RUNNING'],  'label': '运行中'},
@@ -346,7 +347,7 @@ class OverlayWindow(QWidget):
 
         row = QFrame()
         row.setFixedHeight(ROW_HEIGHT)
-        row_bg = BG if i % 2 == 0 else '#242426'
+        row_bg = BG if i % 2 == 0 else ROW_BG_ALT
         row.setStyleSheet(f'background-color: {row_bg};')
         row._row_bg = row_bg  # store for blink
 
@@ -403,13 +404,14 @@ class OverlayWindow(QWidget):
                     dot.setStyleSheet(f'background-color: {color}; border-radius: 4px;')
 
     def apply_theme(self, theme_name: str):
-        global BG, HEADER_BG, TEXT, TEXT_SEC, BORDER, STATE_CONFIG
+        global BG, HEADER_BG, TEXT, TEXT_SEC, BORDER, ROW_BG_ALT, STATE_CONFIG
         t = THEMES[theme_name]
         BG = t['BG']
         HEADER_BG = t['HEADER_BG']
         TEXT = t['TEXT']
         TEXT_SEC = t['TEXT_SEC']
         BORDER = t['BORDER']
+        ROW_BG_ALT = t['ROW_BG_ALT']
         STATE_CONFIG = {
             InstanceState.RUNNING:  {'color': t['RUNNING'],  'label': '运行中'},
             InstanceState.WAITING:  {'color': t['WAITING'],  'label': '等待确认'},
