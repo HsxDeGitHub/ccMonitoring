@@ -36,13 +36,14 @@ class Monitor:
         self.tray.set_show_callback(self._on_tray_show)
         self.tray.set_theme_toggle_callback(self._on_toggle_theme)
         self.window.apply_theme(self._theme)
+        self.tray.apply_theme(self._theme)
 
         # restore collapsed state
         if self.settings.load_collapsed():
             self.window.hide()
             self.window._collapsed = True
-
-        # poll timer — stored as instance attr to prevent GC
+        else:
+            self.window.show_expanded()
         self._poll_timer.timeout.connect(self._poll)
         self._poll_timer.start(POLL_INTERVAL)
 
@@ -50,8 +51,6 @@ class Monitor:
         self._blink_timer.timeout.connect(self._on_blink)
         self._blink_timer.start(BLINK_INTERVAL)
 
-        # show
-        self.window.show_expanded()
         self.tray.show()
         self._poll()  # immediate first scan
 
@@ -70,6 +69,7 @@ class Monitor:
     def _on_toggle_theme(self):
         self._theme = 'light' if self._theme == 'dark' else 'dark'
         self.window.apply_theme(self._theme)
+        self.tray.apply_theme(self._theme)
         self.settings.save_theme(self._theme)
 
 

@@ -6,12 +6,21 @@ from PyQt6.QtCore import Qt
 
 from ccmonitor.state_engine import InstanceState
 
-STATE_CONFIG = {
-    InstanceState.RUNNING:  '#30d158',
-    InstanceState.WAITING:  '#ffd60a',
-    InstanceState.COMPLETED:'#8e8e93',
-    InstanceState.ERROR:    '#ff453a',
+STATE_COLORS = {
+    'dark': {
+        InstanceState.RUNNING:  '#30d158',
+        InstanceState.WAITING:  '#ffd60a',
+        InstanceState.COMPLETED:'#8e8e93',
+        InstanceState.ERROR:    '#ff453a',
+    },
+    'light': {
+        InstanceState.RUNNING:  '#248a3d',
+        InstanceState.WAITING:  '#b89b00',
+        InstanceState.COMPLETED:'#6e6e73',
+        InstanceState.ERROR:    '#cc3829',
+    },
 }
+STATE_CONFIG = STATE_COLORS['dark']
 
 
 class TrayIcon:
@@ -85,6 +94,10 @@ class TrayIcon:
 
     def set_theme_toggle_callback(self, callback):
         self._on_toggle_theme = callback
+
+    def apply_theme(self, theme_name: str):
+        global STATE_CONFIG
+        STATE_CONFIG = STATE_COLORS.get(theme_name, STATE_COLORS['dark'])
 
     def show(self):
         self._tray.show()
