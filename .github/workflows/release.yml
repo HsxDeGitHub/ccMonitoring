@@ -33,7 +33,7 @@ jobs:
         run: pip install -r requirements.txt pyinstaller
 
       - name: Build
-        run: pyinstaller --name "CC Monitor" --windowed --noconfirm --paths src run.py
+        run: pyinstaller --name "CC Monitor" --windowed --noconfirm run.py
 
       - name: Package (Windows)
         if: runner.os == 'Windows'

@@ -123,7 +123,7 @@ ccMonitoring/
 ├── scripts/
 │   ├── com.ccmonitor.plist       # macOS LaunchAgent 配置模板
 │   └── install_autostart.py      # macOS 开机自启安装脚本
-└── src/ccmonitor/
+└── ccmonitor/
     ├── monitor.py          # 主控制器
     ├── process_scanner.py  # 进程扫描
     ├── state_engine.py     # 状态判定
