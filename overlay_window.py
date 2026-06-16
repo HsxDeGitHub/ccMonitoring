@@ -4,12 +4,12 @@ import tkinter as tk
 from state_engine import InstanceState
 
 # Layout
-WINDOW_WIDTH = 380
-ROW_HEIGHT = 36
-HEADER_HEIGHT = 34
+WINDOW_WIDTH = 240
+ROW_HEIGHT = 34
+HEADER_HEIGHT = 32
 MAX_VISIBLE_ROWS = 8
-TAB_W = 32
-TAB_H = 100
+TAB_W = 28
+TAB_H = 90
 BTN_SIZE = 12
 
 # Colors (macOS dark palette)
@@ -18,8 +18,6 @@ HEADER_BG = '#2c2c2e'
 TEXT = '#f5f5f7'
 TEXT_SEC = '#98989d'
 BORDER = '#38383a'
-ACCENT = '#0a84ff'
-HOVER_BG = '#3a3a3c'
 
 STATE_CONFIG = {
     InstanceState.RUNNING:  {'color': '#30d158', 'label': '运行中'},
@@ -43,6 +41,7 @@ class OverlayWindow:
         self._saved_y = None
         self._saved_w = None
         self._saved_h = None
+        self._tab_side = 'right'  # 'left' or 'right'
 
         self._build_expanded()
         self._build_collapsed()
@@ -61,40 +60,37 @@ class OverlayWindow:
 
         # -- title bar --
         tb = tk.Frame(w, bg=HEADER_BG, height=HEADER_HEIGHT,
-                      highlightthickness=1, highlightbackground=BORDER,
-                      highlightcolor=BORDER)
+                      highlightthickness=1, highlightbackground=BORDER)
         tb.pack(fill=tk.X, side=tk.TOP)
         tb.pack_propagate(False)
 
         title = tk.Label(tb, text='CC Monitor', fg=TEXT, bg=HEADER_BG,
-                         font=('SF Pro Text', 11, 'bold'))
-        title.place(x=12, y=6)
+                         font=('SF Pro Text', 10, 'bold'))
+        title.place(x=12, y=7)
 
         # close button (red circle)
-        self._close_btn = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
-                                    bg=HEADER_BG, highlightthickness=0,
-                                    cursor='hand2')
-        self._close_btn.place(x=WINDOW_WIDTH - 28, y=11)
-        self._close_btn.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
-                                    fill='#ff453a', outline='')
-        self._close_btn.bind('<ButtonRelease-1>', self._on_close_click)
+        cb = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
+                       bg=HEADER_BG, highlightthickness=0, cursor='hand2')
+        cb.place(x=WINDOW_WIDTH - 26, y=10)
+        cb.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
+                       fill='#ff453a', outline='')
+        cb.bind('<ButtonRelease-1>', self._on_close_click)
 
         # collapse button (yellow circle)
-        self._coll_btn = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
-                                   bg=HEADER_BG, highlightthickness=0,
-                                   cursor='hand2')
-        self._coll_btn.place(x=WINDOW_WIDTH - 48, y=11)
-        self._coll_btn.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
-                                   fill='#ffd60a', outline='')
-        self._coll_btn.bind('<ButtonRelease-1>', self._on_collapse_click)
+        mb = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
+                       bg=HEADER_BG, highlightthickness=0, cursor='hand2')
+        mb.place(x=WINDOW_WIDTH - 44, y=10)
+        mb.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
+                       fill='#ffd60a', outline='')
+        mb.bind('<ButtonRelease-1>', self._on_collapse_click)
 
-        # -- drag: bind on title bar --
+        # drag
         tb.bind('<Button-1>', self._drag_start)
         tb.bind('<B1-Motion>', self._drag_move)
         title.bind('<Button-1>', self._drag_start)
         title.bind('<B1-Motion>', self._drag_move)
 
-        # -- instance list --
+        # instance list
         self._list_frame = tk.Frame(w, bg=BG)
         self._list_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
@@ -115,42 +111,42 @@ class OverlayWindow:
         w = self._collapsed_win = tk.Toplevel(self.root)
         w.overrideredirect(True)
         w.attributes('-topmost', True)
-        w.attributes('-alpha', 0.92)
+        w.attributes('-alpha', 0.93)
         w.configure(bg=BG)
 
+        # outer frame with border
         outer = tk.Frame(w, bg=BORDER, width=TAB_W + 2, height=TAB_H + 2)
         outer.pack_propagate(False)
         outer.pack()
 
+        # inner frame (content area)
         inner = tk.Frame(outer, bg=BG, width=TAB_W, height=TAB_H)
         inner.place(x=1, y=1)
 
-        self._tab_dot = tk.Canvas(inner, width=14, height=14,
-                                  bg=BG, highlightthickness=0,
-                                  cursor='hand2')
-        self._tab_dot.place(x=9, y=14)
-        self._tab_dot.bind('<Button-1>', lambda e: self.expand())
+        # status dot — centered horizontally, near top
+        dot_size = 14
+        self._tab_dot = tk.Canvas(inner, width=dot_size, height=dot_size,
+                                  bg=BG, highlightthickness=0, cursor='hand2')
+        self._tab_dot.place(x=(TAB_W - dot_size) // 2, y=12)
 
-        arrow = tk.Label(inner, text='▶', fg=TEXT_SEC, bg=BG,
-                         font=('SF Pro Text', 9), cursor='hand2')
-        arrow.place(x=9, y=38)
-        arrow.bind('<Button-1>', lambda e: self.expand())
+        # separator line
+        sep = tk.Frame(inner, bg=BORDER, width=16, height=1)
+        sep.place(x=(TAB_W - 16) // 2, y=34)
 
-        hint = tk.Label(inner, text='展', fg=TEXT_SEC, bg=BG,
-                        font=('PingFang SC', 7), cursor='hand2')
-        hint.place(x=3, y=60)
-        hint.bind('<Button-1>', lambda e: self.expand())
+        # expand arrow
+        self._tab_arrow = tk.Label(inner, text='▶', fg=TEXT_SEC, bg=BG,
+                                   font=('SF Pro Text', 10), cursor='hand2')
+        self._tab_arrow.place(x=(TAB_W - 10) // 2, y=42)
 
-        hint2 = tk.Label(inner, text='开', fg=TEXT_SEC, bg=BG,
-                         font=('PingFang SC', 7), cursor='hand2')
-        hint2.place(x=3, y=74)
-        hint2.bind('<Button-1>', lambda e: self.expand())
+        # click to expand — entire inner area
+        for child in (inner, self._tab_dot, self._tab_arrow):
+            child.bind('<Button-1>', lambda e: self.expand())
 
-        # drag support
-        inner.bind('<Button-1>', self._tab_drag_start)
+        # drag — bind on inner + arrow (dot is for expand only)
         inner.bind('<B1-Motion>', self._tab_drag_move)
-        arrow.bind('<Button-1>', self._tab_drag_start)
-        arrow.bind('<B1-Motion>', self._tab_drag_move)
+        inner.bind('<Button-1>', self._tab_drag_start)
+        self._tab_arrow.bind('<B1-Motion>', self._tab_drag_move)
+        self._tab_arrow.bind('<Button-1>', self._tab_drag_start)
 
         w.withdraw()
 
@@ -213,6 +209,7 @@ class OverlayWindow:
         self._snap_tab_to_edge()
         self._collapsed_win.deiconify()
         self._collapsed = True
+        self._update_tab_arrow()
         self._lift()
 
     def expand(self):
@@ -227,13 +224,23 @@ class OverlayWindow:
     def _snap_tab_to_edge(self):
         sw = self._collapsed_win.winfo_screenwidth()
         sh = self._collapsed_win.winfo_screenheight()
-        cx = self._saved_x if self._saved_x is not None else sw - WINDOW_WIDTH - 20
-        cy = self._saved_y if self._saved_y is not None else 60
+        cx = self._saved_x or (sw - WINDOW_WIDTH - 20)
+        cy = self._saved_y or 60
 
-        new_x = 0 if cx < sw / 2 else sw - TAB_W - 3
+        if cx < sw / 2:
+            self._tab_side = 'left'
+            new_x = 0
+        else:
+            self._tab_side = 'right'
+            new_x = sw - TAB_W - 3
+
         new_y = max(0, min(cy, sh - TAB_H))
         self._collapsed_win.geometry(f'+{new_x}+{new_y}')
         self._lift()
+
+    def _update_tab_arrow(self):
+        """Update arrow direction to point toward screen center."""
+        self._tab_arrow.configure(text='▶' if self._tab_side == 'left' else '◀')
 
     # ==================================================================
     # display
@@ -259,7 +266,6 @@ class OverlayWindow:
         cwd = inst.get('cwd', '')
         dir_name = cwd.rstrip('/').split('/')[-1] if cwd else '?'
 
-        # alternating row background
         row_bg = BG if i % 2 == 0 else '#242426'
 
         row = tk.Frame(self._list_frame, bg=row_bg, height=ROW_HEIGHT)
@@ -271,17 +277,17 @@ class OverlayWindow:
         if state == InstanceState.WAITING and not self._blink_state:
             dot_color = row_bg
 
-        dot = tk.Canvas(row, width=20, height=ROW_HEIGHT,
+        dot = tk.Canvas(row, width=22, height=ROW_HEIGHT,
                         bg=row_bg, highlightthickness=0)
         dot.pack(side=tk.LEFT)
-        dot.create_oval(5, (ROW_HEIGHT - 10) // 2,
-                        15, (ROW_HEIGHT + 10) // 2,
+        dot.create_oval(6, (ROW_HEIGHT - 8) // 2,
+                        14, (ROW_HEIGHT + 8) // 2,
                         fill=dot_color, outline='')
 
         # directory name
         lbl = tk.Label(row, text=dir_name, fg=TEXT, bg=row_bg,
                        font=('SF Pro Text', 11), anchor=tk.W)
-        lbl.pack(side=tk.LEFT, padx=6, fill=tk.X, expand=True)
+        lbl.pack(side=tk.LEFT, padx=4, fill=tk.X, expand=True)
 
         # state badge
         badge = tk.Label(row, text=cfg['label'], fg=cfg['color'], bg=row_bg,
@@ -297,7 +303,7 @@ class OverlayWindow:
                 color = STATE_CONFIG[s]['color']
                 break
         self._tab_dot.delete('all')
-        self._tab_dot.create_oval(2, 2, 12, 12, fill=color, outline='')
+        self._tab_dot.create_oval(1, 1, 13, 13, fill=color, outline='')
 
     def toggle_blink(self):
         self._blink_state = not self._blink_state
