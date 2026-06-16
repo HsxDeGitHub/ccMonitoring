@@ -65,7 +65,6 @@ class CollapsedTab(QWidget):
             Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.setFixedSize(TAB_W + 2, TAB_H + 2)
         self.setStyleSheet(f'background-color: {BORDER}; border-radius: 6px;')
         self._dot_color = '#8e8e93'
@@ -335,6 +334,7 @@ class OverlayWindow(QWidget):
     # -- lifecycle --
 
     def show_expanded(self):
+        self._collapsed = False
         self.show()
         self._keep_on_top()
 
