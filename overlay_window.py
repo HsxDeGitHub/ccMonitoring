@@ -347,7 +347,12 @@ class OverlayWindow:
             return False
 
     def process_events(self):
-        self.root.update()
+        try:
+            self.root.update()
+        except tk.TclError:
+            return
+        if not self.is_alive():
+            return
         self._lift()
 
     def quit(self):
