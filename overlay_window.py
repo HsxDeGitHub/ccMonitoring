@@ -62,10 +62,10 @@ class CollapsedTab(QWidget):
         super().__init__()
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
+            Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.setFixedSize(TAB_W + 2, TAB_H + 2)
         self.setStyleSheet(f'background-color: {BORDER}; border-radius: 6px;')
         self._dot_color = '#8e8e93'
@@ -128,8 +128,7 @@ class OverlayWindow(QWidget):
         self.setObjectName('expanded')
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
+            Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setStyleSheet(STYLE)
@@ -145,7 +144,7 @@ class OverlayWindow(QWidget):
         self._build_title_bar()
         self._build_list_area()
 
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
         saved_pos = self._settings.load_window_position()
         if saved_pos:
@@ -264,7 +263,6 @@ class OverlayWindow(QWidget):
             self._list_layout.insertWidget(i, self._make_row(i, inst))
 
         self._update_height(min(len(instances), MAX_VISIBLE_ROWS))
-        self._keep_on_top()
 
     def _make_row(self, i: int, inst: dict) -> QFrame:
         state = inst['state']
@@ -322,8 +320,7 @@ class OverlayWindow(QWidget):
         self._tab.set_dot_color(color)
 
     def _keep_on_top(self):
-        """Force window to top on macOS."""
-        self.raise_()
+        """Re-assert stays-on-top without activating window."""
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
 
     def toggle_blink(self):
