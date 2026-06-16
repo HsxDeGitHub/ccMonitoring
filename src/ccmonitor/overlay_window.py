@@ -298,12 +298,12 @@ class OverlayWindow(QWidget):
         name_lbl = QLabel(display_name, row)
         name_lbl.setStyleSheet(f'color: {TEXT}; font-size: 11px; background: transparent;')
         name_lbl.move(26, 8)
-        name_lbl.setFixedWidth(140)
+        name_lbl.setFixedWidth(148)
 
         # state label
         state_lbl = QLabel(cfg['label'], row)
         state_lbl.setStyleSheet(f'color: {cfg["color"]}; font-size: 9px; background: transparent;')
-        state_lbl.move(WINDOW_WIDTH - 60, 10)
+        state_lbl.move(WINDOW_WIDTH - 52, 10)
         state_lbl._color = cfg['color']
 
         # tooltip
