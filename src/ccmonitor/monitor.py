@@ -27,12 +27,16 @@ class Monitor:
         self.window = OverlayWindow()
         self.tray = TrayIcon()
         self.settings = AppSettings()
+        self._theme = self.settings.load_theme()
         self._poll_timer = QTimer()
         self._blink_timer = QTimer()
 
     def run(self):
         # wire tray show callback
         self.tray.set_show_callback(self._on_tray_show)
+        self.tray.set_theme_toggle_callback(self._on_toggle_theme)
+        if self._theme != 'dark':
+            self.window.apply_theme(self._theme)
 
         # restore collapsed state
         if self.settings.load_collapsed():
@@ -63,6 +67,11 @@ class Monitor:
 
     def _on_tray_show(self):
         self.window.show_expanded()
+
+    def _on_toggle_theme(self):
+        self._theme = 'light' if self._theme == 'dark' else 'dark'
+        self.window.apply_theme(self._theme)
+        self.settings.save_theme(self._theme)
 
 
 def main():

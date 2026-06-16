@@ -23,6 +23,7 @@ class TrayIcon:
         self._update_icon('#8e8e93')
 
         self._menu = QMenu()
+        self._on_toggle_theme = lambda: None
         self._tray.setContextMenu(self._menu)
 
     def _update_icon(self, color: str):
@@ -63,6 +64,10 @@ class TrayIcon:
                     if tray_color == '#8e8e93':
                         tray_color = color
 
+        theme_action = QAction('切换主题', self._menu)
+        theme_action.triggered.connect(self._on_toggle_theme)
+        self._menu.addAction(theme_action)
+
         self._menu.addSeparator()
 
         show_action = QAction('显示窗口', self._menu)
@@ -77,6 +82,9 @@ class TrayIcon:
 
     def set_show_callback(self, callback):
         self._on_show = callback
+
+    def set_theme_toggle_callback(self, callback):
+        self._on_toggle_theme = callback
 
     def show(self):
         self._tray.show()
