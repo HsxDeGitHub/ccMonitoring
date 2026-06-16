@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QAction
 from PyQt6.QtCore import Qt
 
-from state_engine import InstanceState
+from ccmonitor.state_engine import InstanceState
 
 STATE_CONFIG = {
     InstanceState.RUNNING:  '#30d158',

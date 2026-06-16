@@ -6,8 +6,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QMouseEvent
 
-from state_engine import InstanceState
-from settings import AppSettings
+from ccmonitor.state_engine import InstanceState
+from ccmonitor.settings import AppSettings
 
 # Layout
 WINDOW_WIDTH = 240

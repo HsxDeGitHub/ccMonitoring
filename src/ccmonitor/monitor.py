@@ -7,11 +7,11 @@ import os
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
 
-from process_scanner import ProcessScanner
-from state_engine import StateEngine
-from overlay_window import OverlayWindow
-from tray_icon import TrayIcon
-from settings import AppSettings
+from ccmonitor.process_scanner import ProcessScanner
+from ccmonitor.state_engine import StateEngine
+from ccmonitor.overlay_window import OverlayWindow
+from ccmonitor.tray_icon import TrayIcon
+from ccmonitor.settings import AppSettings
 
 
 POLL_INTERVAL = 1500  # ms
