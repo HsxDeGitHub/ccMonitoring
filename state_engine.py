@@ -21,10 +21,8 @@ class StateEngine:
     """Tracks Claude Code instances and determines their current state."""
 
     def __init__(self):
-        # instance_key -> {state, cwd, create_time, exit_time, exit_code, last_seen_pid}
+        # instance_key -> {state, cwd, create_time, exit_time, last_seen}
         self._instances = {}
-        # pid -> exit_code tracking
-        self._exit_codes = {}
 
     def _make_key(self, info):
         """Generate a stable key from pid + cwd + create_time."""
@@ -57,9 +55,6 @@ class StateEngine:
                 inst['state'] = InstanceState.RUNNING
             else:
                 inst['state'] = InstanceState.WAITING
-
-            # Store exiting pid -> key mapping for exit code lookup
-            self._exit_codes[proc['pid']] = key
             self._instances[key] = inst
 
         # Mark dead instances
