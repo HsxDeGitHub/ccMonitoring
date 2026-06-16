@@ -35,15 +35,19 @@ class Monitor:
         # wire tray show callback
         self.tray.set_show_callback(self._on_tray_show)
         self.tray.set_theme_toggle_callback(self._on_toggle_theme)
-        self.window.apply_theme(self._theme)
-        self.tray.apply_theme(self._theme)
 
         # restore collapsed state
         if self.settings.load_collapsed():
             self.window.hide()
             self.window._collapsed = True
+            self.window._on_collapse_click()  # create collapsed tab
         else:
             self.window.show_expanded()
+
+        # apply theme AFTER window is shown (prevents PyQt6 render issues)
+        self.window.apply_theme(self._theme)
+        self.tray.apply_theme(self._theme)
+
         self._poll_timer.timeout.connect(self._poll)
         self._poll_timer.start(POLL_INTERVAL)
 
