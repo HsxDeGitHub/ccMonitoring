@@ -51,7 +51,8 @@ class StateEngine:
             inst['cpu_percent'] = proc['cpu_percent']
             inst['last_seen'] = now
 
-            if proc['cpu_percent'] > CPU_ACTIVE_THRESHOLD:
+            effective_cpu = proc.get('tree_cpu_percent', proc['cpu_percent'])
+            if effective_cpu > CPU_ACTIVE_THRESHOLD:
                 inst['state'] = InstanceState.RUNNING
             else:
                 inst['state'] = InstanceState.WAITING
