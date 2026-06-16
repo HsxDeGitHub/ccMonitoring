@@ -17,32 +17,63 @@ MAX_VISIBLE_ROWS = 8
 TAB_W = 28
 TAB_H = 56
 
-# Colors (macOS dark palette)
-BG = '#1c1c1e'
-HEADER_BG = '#2c2c2e'
-TEXT = '#f5f5f7'
-TEXT_SEC = '#98989d'
-BORDER = '#38383a'
-
-STATE_CONFIG = {
-    InstanceState.RUNNING:  {'color': '#30d158', 'label': '运行中'},
-    InstanceState.WAITING:  {'color': '#ffd60a', 'label': '等待确认'},
-    InstanceState.COMPLETED:{'color': '#8e8e93', 'label': '已完成'},
-    InstanceState.ERROR:    {'color': '#ff453a', 'label': '出错'},
+# Theme color palettes
+THEMES = {
+    'dark': {
+        'BG': '#1c1c1e',
+        'HEADER_BG': '#2c2c2e',
+        'ROW_BG_ALT': '#242426',
+        'TEXT': '#f5f5f7',
+        'TEXT_SEC': '#98989d',
+        'BORDER': '#38383a',
+        'RUNNING': '#30d158',
+        'WAITING': '#ffd60a',
+        'COMPLETED': '#8e8e93',
+        'ERROR': '#ff453a',
+    },
+    'light': {
+        'BG': '#f5f5f7',
+        'HEADER_BG': '#e5e5ea',
+        'ROW_BG_ALT': '#ececf0',
+        'TEXT': '#1c1c1e',
+        'TEXT_SEC': '#6e6e73',
+        'BORDER': '#c6c6c8',
+        'RUNNING': '#248a3d',
+        'WAITING': '#b89b00',
+        'COMPLETED': '#6e6e73',
+        'ERROR': '#cc3829',
+    },
 }
 
-STYLE = f"""
-QWidget#expanded {{
-    background-color: {BG};
-    border: 1px solid {BORDER};
-    border-radius: 8px;
-}}
-QWidget#titleBar {{
-    background-color: {HEADER_BG};
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-}}
-"""
+# Module-level references — initialized to dark, updated by apply_theme()
+BG = THEMES['dark']['BG']
+HEADER_BG = THEMES['dark']['HEADER_BG']
+TEXT = THEMES['dark']['TEXT']
+TEXT_SEC = THEMES['dark']['TEXT_SEC']
+BORDER = THEMES['dark']['BORDER']
+
+STATE_CONFIG = {
+    InstanceState.RUNNING:  {'color': THEMES['dark']['RUNNING'],  'label': '运行中'},
+    InstanceState.WAITING:  {'color': THEMES['dark']['WAITING'],  'label': '等待确认'},
+    InstanceState.COMPLETED:{'color': THEMES['dark']['COMPLETED'],'label': '已完成'},
+    InstanceState.ERROR:    {'color': THEMES['dark']['ERROR'],    'label': '出错'},
+}
+
+
+def build_stylesheet(theme_name: str) -> str:
+    t = THEMES[theme_name]
+    return f"""
+    QWidget#expanded {{
+        background-color: {t['BG']};
+        border: 1px solid {t['BORDER']};
+        border-radius: 8px;
+    }}
+    QWidget#titleBar {{
+        background-color: {t['HEADER_BG']};
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+    }}
+    """
 
 
 class ClickableLabel(QLabel):
@@ -132,6 +163,18 @@ class CollapsedTab(QWidget):
             self.expand_requested.emit()
         self._drag_pos = None
 
+    def apply_theme(self, theme_name: str):
+        global BG, BORDER, TEXT_SEC
+        t = THEMES[theme_name]
+        BG = t['BG']
+        BORDER = t['BORDER']
+        TEXT_SEC = t['TEXT_SEC']
+        self.setStyleSheet(f'background-color: {BORDER}; border-radius: 6px;')
+        self._inner.setStyleSheet(f'QFrame#tabInner {{ background-color: {BG}; border-radius: 5px; }}')
+        self._arrow.setStyleSheet(f'color: {TEXT_SEC}; font-size: 10px;')
+        if self._instances:
+            self.set_dots(self._instances)
+
     def snap_to_edge(self, ref_x: int, ref_y: int):
         screen = QApplication.primaryScreen().availableGeometry()
         if ref_x < screen.width() // 2:
@@ -153,7 +196,7 @@ class OverlayWindow(QWidget):
             Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setStyleSheet(STYLE)
+        self.setStyleSheet(build_stylesheet('dark'))
         self.setFixedWidth(WINDOW_WIDTH)
 
         self._instances = []
@@ -161,6 +204,7 @@ class OverlayWindow(QWidget):
         self._drag_pos = None
         self._collapsed = False
         self._tab = None
+        self._theme_name = 'dark'
         self._settings = AppSettings()
 
         self._build_title_bar()
@@ -357,6 +401,42 @@ class OverlayWindow(QWidget):
                 if inst['state'] == InstanceState.WAITING:
                     color = dot._color if self._blink_state else dot._row_bg
                     dot.setStyleSheet(f'background-color: {color}; border-radius: 4px;')
+
+    def apply_theme(self, theme_name: str):
+        global BG, HEADER_BG, TEXT, TEXT_SEC, BORDER, STATE_CONFIG
+        t = THEMES[theme_name]
+        BG = t['BG']
+        HEADER_BG = t['HEADER_BG']
+        TEXT = t['TEXT']
+        TEXT_SEC = t['TEXT_SEC']
+        BORDER = t['BORDER']
+        STATE_CONFIG = {
+            InstanceState.RUNNING:  {'color': t['RUNNING'],  'label': '运行中'},
+            InstanceState.WAITING:  {'color': t['WAITING'],  'label': '等待确认'},
+            InstanceState.COMPLETED:{'color': t['COMPLETED'],'label': '已完成'},
+            InstanceState.ERROR:    {'color': t['ERROR'],    'label': '出错'},
+        }
+
+        self._theme_name = theme_name
+        self.setStyleSheet(build_stylesheet(theme_name))
+        self._list_widget.setStyleSheet(f'background: {BG};')
+        self._scroll.setStyleSheet(f'QScrollArea {{ border: none; background: {BG}; }}')
+
+        # Update title bar label
+        for child in self._title_bar.children():
+            if isinstance(child, QLabel):
+                child.setStyleSheet(
+                    f'color: {TEXT}; font-size: 10px; font-weight: bold; background: transparent;'
+                )
+                break
+
+        # Rebuild existing rows
+        if self._instances:
+            self.update_instances(self._instances)
+
+        # Update collapsed tab
+        if self._tab:
+            self._tab.set_dots(self._instances)
 
     def _center(self):
         screen = QApplication.primaryScreen().availableGeometry()
