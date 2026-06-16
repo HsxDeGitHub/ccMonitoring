@@ -8,7 +8,7 @@ import shutil
 PLIST_NAME = 'com.ccmonitor.plist'
 PLIST_DIR = os.path.expanduser('~/Library/LaunchAgents')
 PLIST_PATH = os.path.join(PLIST_DIR, PLIST_NAME)
-SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'monitor.py'))
+SCRIPT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src', 'ccmonitor', 'monitor.py'))
 
 
 def install():
