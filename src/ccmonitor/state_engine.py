@@ -64,10 +64,12 @@ class StateEngine:
                     # Process just died — check exit code
                     pid = inst.get('pid')
                     exit_code = self._check_exit_code(pid)
-                    if exit_code == 0:
+                    if exit_code is None:
                         inst['state'] = InstanceState.COMPLETED
-                    else:
+                    elif exit_code != 0:
                         inst['state'] = InstanceState.ERROR
+                    else:
+                        inst['state'] = InstanceState.COMPLETED
                     inst['exit_time'] = now
 
                 # Remove ghosts older than TTL
@@ -81,16 +83,22 @@ class StateEngine:
         return self._get_sorted_list()
 
     def _check_exit_code(self, pid):
-        """Try to get exit code for a pid. Returns 0 if can't determine."""
+        """Try to get exit code for a pid.
+
+        Returns exit code, or None if the process vanished before
+        we could read it. Caller decides default for None.
+        """
         try:
-            proc = __import__('psutil').Process(pid)
-            # psutil may still have exit code info briefly
-            if not proc.is_running():
-                ret = proc.wait(timeout=0)
-                return ret if ret is not None else 0
+            import psutil
+            proc = psutil.Process(pid)
+            if proc.is_running():
+                return None  # still running, caller shouldn't query
+            ret = proc.wait(timeout=0)
+            return ret if ret is not None else 0
+        except psutil.NoSuchProcess:
+            return None  # vanished, can't determine
         except Exception:
-            pass
-        return 0
+            return None
 
     def _get_sorted_list(self):
         """Return instances sorted by state priority: ERROR > WAITING > RUNNING > COMPLETED."""
