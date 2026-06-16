@@ -1,5 +1,7 @@
 """System tray icon with dropdown menu."""
 
+import os
+
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QAction
 from PyQt6.QtCore import Qt
@@ -65,7 +67,7 @@ class TrayIcon:
             for inst in instances:
                 if inst['state'] == s:
                     cwd = inst.get('cwd', '')
-                    dir_name = cwd.rstrip('/').split('/')[-1] if cwd else '?'
+                    dir_name = os.path.basename(cwd) if cwd else '?'
                     color = STATE_CONFIG.get(s, '#8e8e93')
                     action = QAction(f'  {dir_name}', self._menu)
                     action.setEnabled(False)

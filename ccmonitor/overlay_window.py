@@ -1,5 +1,7 @@
 """PyQt6 overlay window for displaying Claude Code instance statuses."""
 
+import os
+
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QScrollArea, QFrame, QApplication,
 )
@@ -367,7 +369,7 @@ class OverlayWindow(QWidget):
         state = inst['state']
         cfg = STATE_CONFIG.get(state, STATE_CONFIG[InstanceState.RUNNING])
         cwd = inst.get('cwd', '')
-        dir_name = cwd.rstrip('/').split('/')[-1] if cwd else '?'
+        dir_name = os.path.basename(cwd) if cwd else '?'
         pid = inst.get('pid', 0)
         display_name = f'{dir_name} (PID: {pid})'
 
