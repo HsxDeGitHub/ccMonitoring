@@ -32,6 +32,7 @@ class OverlayWindow:
         self._drag_y = 0
         self._instances = []
         self._blink_state = True
+        self._last_tab_side = None
 
         self._build_expanded()
         self._build_collapsed()
@@ -84,6 +85,16 @@ class OverlayWindow:
         rows = max(1, min(row_count, MAX_VISIBLE_ROWS))
         h = HEADER_HEIGHT + rows * ROW_HEIGHT + 4
         self._expanded.geometry(f'{WINDOW_WIDTH}x{h}')
+        self._keep_on_top()
+
+    def _keep_on_top(self):
+        """Force window to stay on top (macOS workaround)."""
+        if not self._collapsed:
+            self._expanded.attributes('-topmost', True)
+            self._expanded.lift()
+        else:
+            self._collapsed_win.attributes('-topmost', True)
+            self._collapsed_win.lift()
 
     # ---------- collapsed tab ----------
 
@@ -122,7 +133,8 @@ class OverlayWindow:
         x = self._collapsed_win.winfo_x() + event.x - self._drag_x
         y = self._collapsed_win.winfo_y() + event.y - self._drag_y
         self._collapsed_win.geometry(f'+{x}+{y}')
-        self._last_tab_side = None  # user positioned manually
+        self._last_tab_side = None
+        self._keep_on_top()
 
     def _start_tab_drag(self, event):
         self._drag_x = event.x
@@ -139,6 +151,7 @@ class OverlayWindow:
         x = self._expanded.winfo_x() + event.x - self._drag_x
         y = self._expanded.winfo_y() + event.y - self._drag_y
         self._expanded.geometry(f'+{x}+{y}')
+        self._keep_on_top()
 
     # ---------- expand / collapse ----------
 
@@ -147,15 +160,16 @@ class OverlayWindow:
         self._snap_tab_to_edge()
         self._collapsed_win.deiconify()
         self._collapsed = True
+        self._keep_on_top()
 
     def expand(self):
         self._collapsed_win.withdraw()
-        # Position expanded window near the tab
         tx = self._collapsed_win.winfo_x()
         ty = self._collapsed_win.winfo_y()
         self._expanded.geometry(f'+{tx}+{ty}')
         self._expanded.deiconify()
         self._collapsed = False
+        self._keep_on_top()
 
     def _snap_tab_to_edge(self):
         """Snap collapsed tab to left or right screen edge."""
@@ -171,6 +185,7 @@ class OverlayWindow:
 
         new_y = max(0, min(current_y, screen_h - TAB_HEIGHT))
         self._collapsed_win.geometry(f'+{new_x}+{new_y}')
+        self._keep_on_top()
 
     # ---------- display update ----------
 
@@ -255,6 +270,7 @@ class OverlayWindow:
         x = screen_w - WINDOW_WIDTH - 20
         y = 60
         self._expanded.geometry(f'{WINDOW_WIDTH}x{HEADER_HEIGHT + ROW_HEIGHT + 4}+{x}+{y}')
+        self._keep_on_top()
 
     # ---------- lifecycle ----------
 
@@ -262,6 +278,7 @@ class OverlayWindow:
         """Show the expanded window and start main loop."""
         self._expanded.deiconify()
         self._collapsed = False
+        self._keep_on_top()
 
     def is_collapsed(self):
         return self._collapsed
@@ -276,6 +293,7 @@ class OverlayWindow:
     def process_events(self):
         """Process pending tkinter events (non-blocking)."""
         self.root.update()
+        self._keep_on_top()
 
     def quit(self):
         """Clean shutdown."""
