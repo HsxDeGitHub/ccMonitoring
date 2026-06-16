@@ -9,7 +9,7 @@ ROW_HEIGHT = 34
 HEADER_HEIGHT = 32
 MAX_VISIBLE_ROWS = 8
 TAB_W = 28
-TAB_H = 90
+TAB_H = 56
 BTN_SIZE = 12
 
 # Colors (macOS dark palette)
@@ -123,20 +123,20 @@ class OverlayWindow:
         inner = tk.Frame(outer, bg=BG, width=TAB_W, height=TAB_H)
         inner.place(x=1, y=1)
 
-        # status dot — centered horizontally, near top
+        # status dot
         dot_size = 14
         self._tab_dot = tk.Canvas(inner, width=dot_size, height=dot_size,
                                   bg=BG, highlightthickness=0, cursor='hand2')
-        self._tab_dot.place(x=(TAB_W - dot_size) // 2, y=12)
+        self._tab_dot.place(x=(TAB_W - dot_size) // 2, y=6)
 
         # separator line
         sep = tk.Frame(inner, bg=BORDER, width=16, height=1)
-        sep.place(x=(TAB_W - 16) // 2, y=34)
+        sep.place(x=(TAB_W - 16) // 2, y=24)
 
         # expand arrow
         self._tab_arrow = tk.Label(inner, text='▶', fg=TEXT_SEC, bg=BG,
                                    font=('SF Pro Text', 10), cursor='hand2')
-        self._tab_arrow.place(x=(TAB_W - 10) // 2, y=42)
+        self._tab_arrow.place(x=(TAB_W - 10) // 2, y=30)
 
         # click to expand — entire inner area
         for child in (inner, self._tab_dot, self._tab_arrow):
