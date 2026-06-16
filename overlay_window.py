@@ -334,6 +334,10 @@ class OverlayWindow(QWidget):
     # -- lifecycle --
 
     def show_expanded(self):
+        if self._tab:
+            self._tab.hide()
+            self._tab.deleteLater()
+            self._tab = None
         self._collapsed = False
         self.show()
         self._keep_on_top()
