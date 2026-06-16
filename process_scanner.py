@@ -13,7 +13,7 @@ class ProcessScanner:
         """Scan for claude processes and return list of process info dicts.
 
         Returns:
-            list[dict]: Each dict has keys: pid, cwd, cpu_percent, create_time, cmdline.
+            list[dict]: Each dict has keys: pid, cwd, cpu_percent, create_time.
             cpu_percent is 0.0 on first scan, meaningful on subsequent scans.
         """
         found_pids = set()
