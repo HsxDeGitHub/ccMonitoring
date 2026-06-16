@@ -90,6 +90,14 @@ class CollapsedTab(QWidget):
     """Small tab on screen edge when window is collapsed. Shows one dot per instance vertically."""
     expand_requested = pyqtSignal()
 
+    INNER_W = TAB_W  # 28
+    DOT_SIZE = 10
+    DOT_GAP = 4    # gap between dots
+    DOT_STEP = DOT_SIZE + DOT_GAP  # 14
+    PAD_X = (INNER_W - DOT_SIZE) // 2  # center dots: 9
+    PAD_TOP = 8
+    ARROW_GAP = 6
+
     def __init__(self):
         super().__init__()
         self.setWindowFlags(
@@ -110,35 +118,28 @@ class CollapsedTab(QWidget):
         self._inner.setObjectName('tabInner')
         self._inner.setStyleSheet(f'QFrame#tabInner {{ background-color: {BG}; border-radius: 5px; }}')
 
-        self._dots_widget = QWidget(self._inner)
-        self._dots_widget.setStyleSheet('background: transparent;')
-
-        arrow = QLabel('▶', self._inner)
-        arrow.setStyleSheet(f'color: {TEXT_SEC}; font-size: 10px;')
-        arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._arrow = arrow
+        self._arrow = QLabel('▶', self._inner)
+        self._arrow.setStyleSheet(f'color: {TEXT_SEC}; font-size: 10px;')
+        self._arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._resize()
 
     def set_dots(self, instances):
         """Render one dot per instance vertically, max 8."""
         self._instances = instances[:8]
-        for child in self._dots_widget.children():
-            if isinstance(child, QLabel):
-                child.deleteLater()
         self._dots = []
-        count = len(self._instances)
         priority = [InstanceState.ERROR, InstanceState.WAITING,
                     InstanceState.RUNNING, InstanceState.COMPLETED]
         dot_instances = sorted(self._instances,
                                key=lambda i: priority.index(i['state']) if i['state'] in priority else 99)
         for idx, inst in enumerate(dot_instances):
             cfg = STATE_CONFIG.get(inst['state'], STATE_CONFIG[InstanceState.RUNNING])
-            dot = QLabel(self._dots_widget)
-            dot.setFixedSize(10, 10)
-            dot.move(8, idx * 14 + 8)
+            dot = QLabel(self._inner)
+            dot.setFixedSize(self.DOT_SIZE, self.DOT_SIZE)
+            dot.move(self.PAD_X, self.PAD_TOP + idx * self.DOT_STEP)
             dot.setStyleSheet(f'background-color: {cfg["color"]}; border-radius: 5px;')
             dot._color = cfg['color']
             dot._state = inst['state']
+            dot.show()
             self._dots.append(dot)
         self._resize()
 
@@ -151,14 +152,20 @@ class CollapsedTab(QWidget):
 
     def _resize(self):
         count = max(len(self._instances), 1)
-        w = TAB_W + 2
-        dots_h = count * 14 + 6
-        arrow_y = dots_h + 6
-        h = arrow_y + 20
-        self.setFixedSize(w, h)
-        self._inner.setGeometry(1, 1, TAB_W, h - 2)
-        self._dots_widget.setGeometry(0, 4, TAB_W, dots_h)
-        self._arrow.setGeometry(4, arrow_y, TAB_W - 8, 14)
+        dots_h = self.PAD_TOP + max(count, 1) * self.DOT_STEP
+        arrow_y = dots_h + self.ARROW_GAP
+        h = arrow_y + 16
+        self.setFixedSize(self.INNER_W + 2, h)
+        self._inner.setGeometry(1, 1, self.INNER_W, h - 2)
+        self._arrow.setGeometry(2, arrow_y, self.INNER_W - 4, 14)
+
+    def _clamp_to_screen(self):
+        screen = QApplication.primaryScreen().availableGeometry()
+        x = self.x()
+        y = self.y()
+        x = max(0, min(x, screen.width() - self.width()))
+        y = max(0, min(y, screen.height() - self.height()))
+        self.move(x, y)
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -170,7 +177,11 @@ class CollapsedTab(QWidget):
             delta = event.globalPosition().toPoint() - self._drag_pos
             if abs(delta.x()) > 2 or abs(delta.y()) > 2:
                 self._dragged = True
-            self.move(self.pos() + delta)
+            new_pos = self.pos() + delta
+            screen = QApplication.primaryScreen().availableGeometry()
+            new_pos.setX(max(0, min(new_pos.x(), screen.width() - self.width())))
+            new_pos.setY(max(0, min(new_pos.y(), screen.height() - self.height())))
+            self.move(new_pos)
             self._drag_pos = event.globalPosition().toPoint()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -196,7 +207,7 @@ class CollapsedTab(QWidget):
             new_x = 0
         else:
             new_x = screen.width() - self.width()
-        new_y = max(0, min(ref_y, screen.height() - TAB_H))
+        new_y = max(0, min(ref_y, screen.height() - self.height()))
         self.move(new_x, new_y)
 
 
