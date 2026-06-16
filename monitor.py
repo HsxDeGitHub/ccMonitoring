@@ -39,14 +39,12 @@ class Monitor:
                 self.window.toggle_blink()
                 self._last_blink = now
 
-            # Process GUI events (non-blocking)
-            self.window.process_events()
-
-            # Sleep for remaining interval
+            # Keep UI responsive: short sleeps with event processing
             elapsed = time.time() - loop_start
-            remaining = POLL_INTERVAL - elapsed
-            if remaining > 0:
-                time.sleep(remaining)
+            deadline = loop_start + POLL_INTERVAL
+            while time.time() < deadline and self.window.is_alive():
+                self.window.process_events()
+                time.sleep(0.05)
 
 
 def main():

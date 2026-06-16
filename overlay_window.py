@@ -259,9 +259,6 @@ class OverlayWindow:
         cwd = inst.get('cwd', '')
         dir_name = cwd.rstrip('/').split('/')[-1] if cwd else '?'
 
-        if len(cwd) > 45:
-            cwd = '...' + cwd[-42:]
-
         # alternating row background
         row_bg = BG if i % 2 == 0 else '#242426'
 
@@ -281,11 +278,10 @@ class OverlayWindow:
                         15, (ROW_HEIGHT + 10) // 2,
                         fill=dot_color, outline='')
 
-        # path text
-        txt = f'{cwd}  ({dir_name})'
-        lbl = tk.Label(row, text=txt, fg=TEXT, bg=row_bg,
-                       font=('SF Mono', 10), anchor=tk.W)
-        lbl.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
+        # directory name
+        lbl = tk.Label(row, text=dir_name, fg=TEXT, bg=row_bg,
+                       font=('SF Pro Text', 11), anchor=tk.W)
+        lbl.pack(side=tk.LEFT, padx=6, fill=tk.X, expand=True)
 
         # state badge
         badge = tk.Label(row, text=cfg['label'], fg=cfg['color'], bg=row_bg,
