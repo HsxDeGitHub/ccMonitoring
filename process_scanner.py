@@ -28,8 +28,12 @@ class ProcessScanner:
                 cmdline_str = ' '.join(info['cmdline'])
                 if 'claude' not in cmdline_str.lower():
                     continue
-                # Exclude our own monitor process
                 if 'monitor.py' in cmdline_str:
+                    continue
+
+                # Only processes attached to a terminal (real CLI sessions)
+                tty = proc.terminal()
+                if not tty:
                     continue
 
                 pid = info['pid']
