@@ -26,10 +26,11 @@ class ProcessScanner:
                 if 'monitor.py' in cmdline_str:
                     continue
 
-                # Only processes attached to a terminal (real CLI sessions)
-                tty = proc.terminal()
-                if not tty:
-                    continue
+                # On Unix, only include processes attached to a terminal.
+                # terminal() is Unix-only; Windows skips this check.
+                if hasattr(proc, 'terminal'):
+                    if not proc.terminal():
+                        continue
 
                 # Get accurate CPU usage (blocks 0.1s per process)
                 cpu_pct = proc.cpu_percent(interval=0.25) or 0.0
