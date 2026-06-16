@@ -33,3 +33,10 @@ class AppSettings:
     def load_collapsed(self) -> bool:
         val = self._s.value('window/collapsed', False)
         return str(val).lower() == 'true'
+
+    def save_theme(self, name: str):
+        self._s.setValue('appearance/theme', name)
+
+    def load_theme(self) -> str:
+        val = self._s.value('appearance/theme', 'dark')
+        return str(val) if val else 'dark'
