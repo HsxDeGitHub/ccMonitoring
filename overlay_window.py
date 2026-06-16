@@ -138,15 +138,11 @@ class OverlayWindow:
                                    font=('SF Pro Text', 10), cursor='hand2')
         self._tab_arrow.place(x=(TAB_W - 10) // 2, y=30)
 
-        # click to expand — entire inner area
+        # click to expand, drag to move
         for child in (inner, self._tab_dot, self._tab_arrow):
-            child.bind('<Button-1>', lambda e: self.expand())
-
-        # drag — bind on inner + arrow (dot is for expand only)
-        inner.bind('<B1-Motion>', self._tab_drag_move)
-        inner.bind('<Button-1>', self._tab_drag_start)
-        self._tab_arrow.bind('<B1-Motion>', self._tab_drag_move)
-        self._tab_arrow.bind('<Button-1>', self._tab_drag_start)
+            child.bind('<Button-1>', self._tab_press)
+            child.bind('<B1-Motion>', self._tab_drag_move)
+            child.bind('<ButtonRelease-1>', self._tab_release)
 
         w.withdraw()
 
@@ -169,22 +165,29 @@ class OverlayWindow:
         self._lift()
 
     # ==================================================================
-    # drag — collapsed tab
+    # drag / click — collapsed tab
     # ==================================================================
 
-    def _tab_drag_start(self, event):
+    def _tab_press(self, event):
         self._drag_x = event.x_root
         self._drag_y = event.y_root
+        self._tab_dragged = False
 
     def _tab_drag_move(self, event):
         dx = event.x_root - self._drag_x
         dy = event.y_root - self._drag_y
+        if abs(dx) > 2 or abs(dy) > 2:
+            self._tab_dragged = True
         x = self._collapsed_win.winfo_x() + dx
         y = self._collapsed_win.winfo_y() + dy
         self._collapsed_win.geometry(f'+{x}+{y}')
         self._drag_x = event.x_root
         self._drag_y = event.y_root
         self._lift()
+
+    def _tab_release(self, event):
+        if not self._tab_dragged:
+            self.expand()
 
     # ==================================================================
     # button handlers
