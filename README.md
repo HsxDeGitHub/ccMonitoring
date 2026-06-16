@@ -1,30 +1,35 @@
 # CC Monitor
 
-Claude Code 进程桌面监控工具 — 在 macOS 桌面上以悬浮窗口实时显示所有 Claude Code 实例的运行状态，让你在其它界面也能一眼看到任务是否还在继续执行。
+Claude Code 进程桌面监控工具 — 以悬浮窗口实时显示所有 Claude Code 实例的运行状态，让你在其它界面也能一眼看到任务是否还在继续执行。支持 Windows、macOS、Linux。
 
 ## 功能特性
 
 - **实时进程监控** — 自动扫描系统中所有正在运行的 Claude Code 进程，定时刷新状态
 - **状态指示灯** — 通过颜色区分四种状态：运行中（绿）、等待确认（黄）、已完成（灰）、出错（红）
 - **悬浮窗口** — 始终置顶的迷你窗口，可拖拽到屏幕任意位置，不干扰正常工作
-- **折叠模式** — 将窗口折叠为屏幕边缘的小巧标签，仅显示彩色圆点，鼠标悬停展开
-- **系统托盘** — 菜单栏图标，右键弹出实例列表和快捷操作
-- **深浅色主题** — 一键切换深色/浅色主题，适配 macOS 外观
+- **折叠模式** — 将窗口折叠为屏幕边缘的小巧标签，仅显示彩色圆点，点击即可展开
+- **系统托盘** — 任务栏托盘图标，右键弹出实例列表和快捷操作
+- **深浅色主题** — 一键切换深色/浅色主题
 
 ## 下载安装
 
 ### 方式一：下载安装包（推荐）
 
-从 [GitHub Releases](../../releases) 下载最新的 `CC-Monitor.app`，拖入 `Applications` 文件夹即可。
+从 [GitHub Releases](../../releases) 下载对应平台的安装包：
 
-首次打开时，由于应用未经过 Apple 公证，需要手动允许：
+| 平台 | 安装包 | 说明 |
+|------|--------|------|
+| Windows | `CC-Monitor-Windows.zip` | 解压后运行 `CC Monitor.exe` |
+| macOS | `CC-Monitor-macOS.zip` | 解压后将 `CC Monitor.app` 拖入 `Applications` |
 
-```bash
-# 移除隔离属性
-sudo xattr -rd com.apple.quarantine /Applications/CC-Monitor.app
-```
+> macOS 首次打开时需移除隔离属性：
+> ```bash
+> sudo xattr -rd com.apple.quarantine /Applications/CC-Monitor.app
+> ```
 
 ### 方式二：源码安装
+
+适用于所有平台（需 Python 环境）：
 
 ```bash
 git clone https://github.com/HsxDeGitHub/ccMonitoring.git
@@ -46,7 +51,7 @@ python run.py
 python run.py
 ```
 
-启动后，屏幕右上角会出现悬浮窗口，同时菜单栏出现 CC Monitor 托盘图标。
+启动后，屏幕边缘会出现悬浮窗口，同时任务栏出现 CC Monitor 托盘图标。
 
 ### 窗口操作
 
@@ -69,7 +74,16 @@ python run.py
 
 等待确认状态的圆点会闪烁，提醒你及时切回终端查看。
 
-## 开机自启（macOS）
+## 开机自启
+
+### Windows
+
+将快捷方式放入启动文件夹：
+
+1. 按 `Win + R`，输入 `shell:startup`，回车
+2. 将 `CC Monitor.exe`（或 `pythonw run.py` 的快捷方式）放入该文件夹
+
+### macOS
 
 ```bash
 # 安装 LaunchAgent，登录后自动启动
@@ -79,6 +93,27 @@ python scripts/install_autostart.py
 python scripts/install_autostart.py --uninstall
 ```
 
+### Linux
+
+创建 systemd 用户服务：
+
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/ccmonitor.service << 'EOF'
+[Unit]
+Description=CC Monitor
+
+[Service]
+ExecStart=/usr/bin/python3 /path/to/ccMonitoring/run.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user enable --now ccmonitor.service
+```
+
 ## 项目结构
 
 ```
@@ -86,8 +121,8 @@ ccMonitoring/
 ├── run.py                 # 入口脚本
 ├── requirements.txt       # Python 依赖
 ├── scripts/
-│   ├── com.ccmonitor.plist       # LaunchAgent 配置模板
-│   └── install_autostart.py      # 开机自启安装脚本
+│   ├── com.ccmonitor.plist       # macOS LaunchAgent 配置模板
+│   └── install_autostart.py      # macOS 开机自启安装脚本
 └── src/ccmonitor/
     ├── monitor.py          # 主控制器
     ├── process_scanner.py  # 进程扫描
