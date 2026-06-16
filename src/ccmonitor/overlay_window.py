@@ -87,7 +87,7 @@ class ClickableLabel(QLabel):
 
 
 class CollapsedTab(QWidget):
-    """Small tab on screen edge when window is collapsed. Shows one dot per instance."""
+    """Small tab on screen edge when window is collapsed. Shows one dot per instance vertically."""
     expand_requested = pyqtSignal()
 
     def __init__(self):
@@ -101,6 +101,8 @@ class CollapsedTab(QWidget):
         self._drag_pos = None
         self._dragged = False
         self._instances = []
+        self._dots = []
+        self._blink_state = True
         self._build()
 
     def _build(self):
@@ -118,12 +120,12 @@ class CollapsedTab(QWidget):
         self._resize()
 
     def set_dots(self, instances):
-        """Render one dot per instance, max 8."""
+        """Render one dot per instance vertically, max 8."""
         self._instances = instances[:8]
-        # clear old dots
         for child in self._dots_widget.children():
             if isinstance(child, QLabel):
                 child.deleteLater()
+        self._dots = []
         count = len(self._instances)
         priority = [InstanceState.ERROR, InstanceState.WAITING,
                     InstanceState.RUNNING, InstanceState.COMPLETED]
@@ -133,18 +135,30 @@ class CollapsedTab(QWidget):
             cfg = STATE_CONFIG.get(inst['state'], STATE_CONFIG[InstanceState.RUNNING])
             dot = QLabel(self._dots_widget)
             dot.setFixedSize(10, 10)
-            dot.move(idx * 14 + 8, 8)
+            dot.move(8, idx * 14 + 8)
             dot.setStyleSheet(f'background-color: {cfg["color"]}; border-radius: 5px;')
+            dot._color = cfg['color']
+            dot._state = inst['state']
+            self._dots.append(dot)
         self._resize()
+
+    def toggle_blink(self):
+        self._blink_state = not self._blink_state
+        for dot in self._dots:
+            if dot._state == InstanceState.WAITING:
+                color = dot._color if self._blink_state else BG
+                dot.setStyleSheet(f'background-color: {color}; border-radius: 5px;')
 
     def _resize(self):
         count = max(len(self._instances), 1)
-        w = 14 + count * 14 + (count - 1) * 4 + 8
-        h = TAB_H + 2
+        w = TAB_W + 2
+        dots_h = count * 14 + 6
+        arrow_y = dots_h + 6
+        h = arrow_y + 20
         self.setFixedSize(w, h)
-        self._inner.setGeometry(1, 1, w - 2, TAB_H)
-        self._dots_widget.setGeometry(0, 6, w - 2, 18)
-        self._arrow.setGeometry(8, 30, w - 18, 16)
+        self._inner.setGeometry(1, 1, TAB_W, h - 2)
+        self._dots_widget.setGeometry(0, 4, TAB_W, dots_h)
+        self._arrow.setGeometry(4, arrow_y, TAB_W - 8, 14)
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -336,6 +350,7 @@ class OverlayWindow(QWidget):
 
         self._update_height(min(len(instances), MAX_VISIBLE_ROWS))
         self._list_widget.update()
+        self._update_tab_dots()
 
     def _make_row(self, i: int, inst: dict) -> tuple:
         state = inst['state']
@@ -402,6 +417,8 @@ class OverlayWindow(QWidget):
                 if inst['state'] == InstanceState.WAITING:
                     color = dot._color if self._blink_state else dot._row_bg
                     dot.setStyleSheet(f'background-color: {color}; border-radius: 4px;')
+        if self._tab:
+            self._tab.toggle_blink()
 
     def apply_theme(self, theme_name: str):
         global BG, HEADER_BG, TEXT, TEXT_SEC, BORDER, ROW_BG_ALT, STATE_CONFIG
