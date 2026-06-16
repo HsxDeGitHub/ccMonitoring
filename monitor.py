@@ -1,55 +1,79 @@
 #!/usr/bin/env python3
-"""CC Monitor — Desktop overlay for Claude Code process monitoring."""
+"""CC Monitor V2 — Desktop overlay for Claude Code process monitoring (PyQt6)."""
 
-import time
+import sys
+import os
+
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QTimer
 
 from process_scanner import ProcessScanner
 from state_engine import StateEngine
 from overlay_window import OverlayWindow
+from tray_icon import TrayIcon
+from settings import AppSettings
 
 
-POLL_INTERVAL = 1.5  # seconds
-BLINK_INTERVAL = 0.6  # seconds
+POLL_INTERVAL = 1500  # ms
+BLINK_INTERVAL = 600  # ms
 
 
 class Monitor:
-    """Main controller that ties process scanning, state engine, and GUI."""
+    """Main controller — PyQt6 event-driven loop."""
 
     def __init__(self):
         self.scanner = ProcessScanner()
         self.engine = StateEngine()
         self.window = OverlayWindow()
-        self._last_blink = time.time()
+        self.tray = TrayIcon()
+        self.settings = AppSettings()
+        self._blink_timer = QTimer()
 
     def run(self):
-        """Start the monitoring loop."""
-        self.window.show()
+        # wire tray show callback
+        self.tray.set_show_callback(self._on_tray_show)
 
-        while self.window.is_alive():
-            loop_start = time.time()
+        # restore collapsed state
+        if self.settings.load_collapsed():
+            self.window.hide()
+            self.window._collapsed = True
+            # The collapsed tab will be created on first poll
 
-            # Poll processes
-            active = self.scanner.scan()
-            instances = self.engine.update(active)
-            self.window.update_instances(instances)
+        # poll timer
+        poll_timer = QTimer()
+        poll_timer.timeout.connect(self._poll)
+        poll_timer.start(POLL_INTERVAL)
 
-            # Blink effect for WAITING state
-            now = time.time()
-            if now - self._last_blink > BLINK_INTERVAL:
-                self.window.toggle_blink()
-                self._last_blink = now
+        # blink timer
+        self._blink_timer.timeout.connect(self._on_blink)
+        self._blink_timer.start(BLINK_INTERVAL)
 
-            # Keep UI responsive: short sleeps with event processing
-            elapsed = time.time() - loop_start
-            deadline = loop_start + POLL_INTERVAL
-            while time.time() < deadline and self.window.is_alive():
-                self.window.process_events()
-                time.sleep(0.05)
+        # show
+        self.window.show_expanded()
+        self.tray.show()
+        self._poll()  # immediate first scan
+
+    def _poll(self):
+        active = self.scanner.scan()
+        instances = self.engine.update(active)
+        self.window.update_instances(instances)
+        self.tray.update_instances(instances)
+
+    def _on_blink(self):
+        self.window.toggle_blink()
+
+    def _on_tray_show(self):
+        self.window.show_expanded()
 
 
 def main():
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)  # keep running when window hidden
+
     monitor = Monitor()
     monitor.run()
+
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':
