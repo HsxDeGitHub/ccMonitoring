@@ -1,7 +1,14 @@
-"""Tkinter overlay window for displaying Claude Code instance statuses."""
+"""PyQt6 overlay window for displaying Claude Code instance statuses."""
 
-import tkinter as tk
+from PyQt6.QtWidgets import (
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QScrollArea,
+    QFrame, QApplication,
+)
+from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal
+from PyQt6.QtGui import QFont, QMouseEvent
+
 from state_engine import InstanceState
+from settings import AppSettings
 
 # Layout
 WINDOW_WIDTH = 240
@@ -10,7 +17,6 @@ HEADER_HEIGHT = 32
 MAX_VISIBLE_ROWS = 8
 TAB_W = 28
 TAB_H = 56
-BTN_SIZE = 12
 
 # Colors (macOS dark palette)
 BG = '#1c1c1e'
@@ -20,348 +26,307 @@ TEXT_SEC = '#98989d'
 BORDER = '#38383a'
 
 STATE_CONFIG = {
-    InstanceState.RUNNING:  {'color': '#30d158', 'label': '运行中'},
-    InstanceState.WAITING:  {'color': '#ffd60a', 'label': '等待确认'},
-    InstanceState.COMPLETED:{'color': '#8e8e93', 'label': '已完成'},
-    InstanceState.ERROR:    {'color': '#ff453a', 'label': '出错'},
+    InstanceState.RUNNING:  {'color': '#30d158', 'bg': 'rgba(48,209,88,0.15)', 'label': '运行中'},
+    InstanceState.WAITING:  {'color': '#ffd60a', 'bg': 'rgba(255,214,10,0.15)', 'label': '等待确认'},
+    InstanceState.COMPLETED:{'color': '#8e8e93', 'bg': 'rgba(142,142,147,0.10)', 'label': '已完成'},
+    InstanceState.ERROR:    {'color': '#ff453a', 'bg': 'rgba(255,69,58,0.15)', 'label': '出错'},
 }
 
+STYLE = f"""
+QWidget#expanded {{
+    background-color: {BG};
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+}}
+QWidget#titleBar {{
+    background-color: {HEADER_BG};
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}}
+"""
 
-class OverlayWindow:
-    """Always-on-top floating window with expand/collapse modes."""
+
+class CollapsedTab(QWidget):
+    """Small tab on screen edge when window is collapsed."""
+    expand_requested = pyqtSignal()
 
     def __init__(self):
-        self.root = tk.Tk()
-        self.root.withdraw()
+        super().__init__()
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setFixedSize(TAB_W + 2, TAB_H + 2)
+        self.setStyleSheet(f'background-color: {BORDER}; border-radius: 6px;')
+        self._dot_color = '#8e8e93'
+        self._drag_pos = None
+        self._dragged = False
+        self._build()
 
-        self._collapsed = False
-        self._instances = []
-        self._blink_state = True
-        self._saved_x = None
-        self._saved_y = None
-        self._saved_w = None
-        self._saved_h = None
-        self._tab_side = 'right'  # 'left' or 'right'
+    def _build(self):
+        inner = QFrame(self)
+        inner.setObjectName('tabInner')
+        inner.setGeometry(1, 1, TAB_W, TAB_H)
+        inner.setStyleSheet(f'QFrame#tabInner {{ background-color: {BG}; border-radius: 5px; }}')
 
-        self._build_expanded()
-        self._build_collapsed()
-        self._center_window()
+        self._dot = QLabel(inner)
+        self._dot.setGeometry(7, 6, 14, 14)
+        self._dot.setStyleSheet(f'background-color: {self._dot_color}; border-radius: 7px;')
 
-    # ==================================================================
-    # expanded window
-    # ==================================================================
+        arrow = QLabel('▶', inner)
+        arrow.setGeometry(7, 30, 14, 16)
+        arrow.setStyleSheet(f'color: {TEXT_SEC}; font-size: 10px;')
+        arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-    def _build_expanded(self):
-        w = self._expanded = tk.Toplevel(self.root)
-        w.overrideredirect(True)
-        w.attributes('-topmost', True)
-        w.attributes('-alpha', 0.95)
-        w.configure(bg=BG)
+    def set_dot_color(self, color: str):
+        self._dot_color = color
+        self._dot.setStyleSheet(f'background-color: {color}; border-radius: 7px;')
 
-        # -- title bar --
-        tb = tk.Frame(w, bg=HEADER_BG, height=HEADER_HEIGHT,
-                      highlightthickness=1, highlightbackground=BORDER)
-        tb.pack(fill=tk.X, side=tk.TOP)
-        tb.pack_propagate(False)
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint()
+            self._dragged = False
 
-        title = tk.Label(tb, text='CC Monitor', fg=TEXT, bg=HEADER_BG,
-                         font=('SF Pro Text', 10, 'bold'))
-        title.place(x=12, y=7)
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if self._drag_pos is not None:
+            delta = event.globalPosition().toPoint() - self._drag_pos
+            if abs(delta.x()) > 2 or abs(delta.y()) > 2:
+                self._dragged = True
+            self.move(self.pos() + delta)
+            self._drag_pos = event.globalPosition().toPoint()
 
-        # close button (red circle)
-        cb = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
-                       bg=HEADER_BG, highlightthickness=0, cursor='hand2')
-        cb.place(x=WINDOW_WIDTH - 26, y=10)
-        cb.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
-                       fill='#ff453a', outline='')
-        cb.bind('<ButtonRelease-1>', self._on_close_click)
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        if self._drag_pos is not None and not self._dragged:
+            self.expand_requested.emit()
+        self._drag_pos = None
 
-        # collapse button (yellow circle)
-        mb = tk.Canvas(tb, width=BTN_SIZE, height=BTN_SIZE,
-                       bg=HEADER_BG, highlightthickness=0, cursor='hand2')
-        mb.place(x=WINDOW_WIDTH - 44, y=10)
-        mb.create_oval(1, 1, BTN_SIZE - 1, BTN_SIZE - 1,
-                       fill='#ffd60a', outline='')
-        mb.bind('<ButtonRelease-1>', self._on_collapse_click)
-
-        # drag
-        tb.bind('<Button-1>', self._drag_start)
-        tb.bind('<B1-Motion>', self._drag_move)
-        title.bind('<Button-1>', self._drag_start)
-        title.bind('<B1-Motion>', self._drag_move)
-
-        # instance list
-        self._list_frame = tk.Frame(w, bg=BG)
-        self._list_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-
-        self._resize_expanded(0)
-        w.withdraw()
-
-    def _resize_expanded(self, row_count):
-        rows = max(1, min(row_count, MAX_VISIBLE_ROWS))
-        h = HEADER_HEIGHT + rows * ROW_HEIGHT + 2
-        self._expanded.geometry(f'{WINDOW_WIDTH}x{h}')
-        self._lift()
-
-    # ==================================================================
-    # collapsed tab
-    # ==================================================================
-
-    def _build_collapsed(self):
-        w = self._collapsed_win = tk.Toplevel(self.root)
-        w.overrideredirect(True)
-        w.attributes('-topmost', True)
-        w.attributes('-alpha', 0.93)
-        w.configure(bg=BG)
-
-        # outer frame with border
-        outer = tk.Frame(w, bg=BORDER, width=TAB_W + 2, height=TAB_H + 2)
-        outer.pack_propagate(False)
-        outer.pack()
-
-        # inner frame (content area)
-        inner = tk.Frame(outer, bg=BG, width=TAB_W, height=TAB_H)
-        inner.place(x=1, y=1)
-
-        # status dot
-        dot_size = 14
-        self._tab_dot = tk.Canvas(inner, width=dot_size, height=dot_size,
-                                  bg=BG, highlightthickness=0, cursor='hand2')
-        self._tab_dot.place(x=(TAB_W - dot_size) // 2, y=6)
-
-        # separator line
-        sep = tk.Frame(inner, bg=BORDER, width=16, height=1)
-        sep.place(x=(TAB_W - 16) // 2, y=24)
-
-        # expand arrow
-        self._tab_arrow = tk.Label(inner, text='▶', fg=TEXT_SEC, bg=BG,
-                                   font=('SF Pro Text', 10), cursor='hand2')
-        self._tab_arrow.place(x=(TAB_W - 10) // 2, y=30)
-
-        # click to expand, drag to move
-        for child in (inner, self._tab_dot, self._tab_arrow):
-            child.bind('<Button-1>', self._tab_press)
-            child.bind('<B1-Motion>', self._tab_drag_move)
-            child.bind('<ButtonRelease-1>', self._tab_release)
-
-        w.withdraw()
-
-    # ==================================================================
-    # drag — expanded
-    # ==================================================================
-
-    def _drag_start(self, event):
-        self._drag_x = event.x_root
-        self._drag_y = event.y_root
-
-    def _drag_move(self, event):
-        dx = event.x_root - self._drag_x
-        dy = event.y_root - self._drag_y
-        x = self._expanded.winfo_x() + dx
-        y = self._expanded.winfo_y() + dy
-        self._expanded.geometry(f'+{x}+{y}')
-        self._drag_x = event.x_root
-        self._drag_y = event.y_root
-        self._lift()
-
-    # ==================================================================
-    # drag / click — collapsed tab
-    # ==================================================================
-
-    def _tab_press(self, event):
-        self._drag_x = event.x_root
-        self._drag_y = event.y_root
-        self._tab_dragged = False
-
-    def _tab_drag_move(self, event):
-        dx = event.x_root - self._drag_x
-        dy = event.y_root - self._drag_y
-        if abs(dx) > 2 or abs(dy) > 2:
-            self._tab_dragged = True
-        x = self._collapsed_win.winfo_x() + dx
-        y = self._collapsed_win.winfo_y() + dy
-        self._collapsed_win.geometry(f'+{x}+{y}')
-        self._drag_x = event.x_root
-        self._drag_y = event.y_root
-        self._lift()
-
-    def _tab_release(self, event):
-        if not self._tab_dragged:
-            self.expand()
-
-    # ==================================================================
-    # button handlers
-    # ==================================================================
-
-    def _on_collapse_click(self, event):
-        self.collapse()
-
-    def _on_close_click(self, event):
-        self.quit()
-
-    # ==================================================================
-    # expand / collapse
-    # ==================================================================
-
-    def collapse(self):
-        self._saved_x = self._expanded.winfo_x()
-        self._saved_y = self._expanded.winfo_y()
-        self._saved_w = self._expanded.winfo_width()
-        self._saved_h = self._expanded.winfo_height()
-        self._expanded.withdraw()
-        self._snap_tab_to_edge()
-        self._collapsed_win.deiconify()
-        self._collapsed = True
-        self._update_tab_arrow()
-        self._lift()
-
-    def expand(self):
-        self._collapsed_win.withdraw()
-        if self._saved_x is not None:
-            self._expanded.geometry(
-                f'{self._saved_w}x{self._saved_h}+{self._saved_x}+{self._saved_y}')
-        self._expanded.deiconify()
-        self._collapsed = False
-        self._lift()
-
-    def _snap_tab_to_edge(self):
-        sw = self._collapsed_win.winfo_screenwidth()
-        sh = self._collapsed_win.winfo_screenheight()
-        cx = self._saved_x or (sw - WINDOW_WIDTH - 20)
-        cy = self._saved_y or 60
-
-        if cx < sw / 2:
-            self._tab_side = 'left'
+    def snap_to_edge(self, ref_x: int, ref_y: int):
+        screen = QApplication.primaryScreen().availableGeometry()
+        if ref_x < screen.width() // 2:
             new_x = 0
         else:
-            self._tab_side = 'right'
-            new_x = sw - TAB_W - 3
+            new_x = screen.width() - TAB_W - 3
+        new_y = max(0, min(ref_y, screen.height() - TAB_H))
+        self.move(new_x, new_y)
 
-        new_y = max(0, min(cy, sh - TAB_H))
-        self._collapsed_win.geometry(f'+{new_x}+{new_y}')
-        self._lift()
 
-    def _update_tab_arrow(self):
-        """Update arrow direction to point toward screen center."""
-        self._tab_arrow.configure(text='▶' if self._tab_side == 'left' else '◀')
+class OverlayWindow(QWidget):
+    """PyQt6 always-on-top floating window."""
 
-    # ==================================================================
-    # display
-    # ==================================================================
+    def __init__(self):
+        super().__init__()
+        self.setObjectName('expanded')
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setStyleSheet(STYLE)
+        self.setFixedWidth(WINDOW_WIDTH)
+
+        self._instances = []
+        self._blink_state = True
+        self._drag_pos = None
+        self._collapsed = False
+        self._tab = None
+        self._settings = AppSettings()
+
+        self._build_title_bar()
+        self._build_list_area()
+
+        # keyboard shortcut: ESC to collapse
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        # restore position or use default
+        saved_pos = self._settings.load_window_position()
+        if saved_pos:
+            self.move(*saved_pos)
+        else:
+            self._center()
+
+        self._update_height(0)
+
+    def _build_title_bar(self):
+        bar = QFrame(self)
+        bar.setObjectName('titleBar')
+        bar.setFixedHeight(HEADER_HEIGHT)
+        bar.setGeometry(0, 0, WINDOW_WIDTH, HEADER_HEIGHT)
+
+        title = QLabel('CC Monitor', bar)
+        title.setStyleSheet(f'color: {TEXT}; font-size: 10px; font-weight: bold; background: transparent;')
+        title.move(12, 8)
+
+        # close button (red)
+        close_btn = QLabel(bar)
+        close_btn.setGeometry(WINDOW_WIDTH - 26, 10, 12, 12)
+        close_btn.setStyleSheet('background-color: #ff453a; border-radius: 6px;')
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.mousePressEvent = lambda e: self._on_close()
+
+        # collapse button (yellow)
+        coll_btn = QLabel(bar)
+        coll_btn.setGeometry(WINDOW_WIDTH - 44, 10, 12, 12)
+        coll_btn.setStyleSheet('background-color: #ffd60a; border-radius: 6px;')
+        coll_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        coll_btn.mousePressEvent = lambda e: self._on_collapse_click()
+
+        self._title_bar = bar
+
+    def _build_list_area(self):
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setStyleSheet(f'QScrollArea {{ border: none; background: {BG}; }}')
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setGeometry(0, HEADER_HEIGHT, WINDOW_WIDTH, 100)
+
+        self._list_widget = QWidget()
+        self._list_widget.setStyleSheet(f'background: {BG};')
+        self._list_layout = QVBoxLayout(self._list_widget)
+        self._list_layout.setContentsMargins(0, 0, 0, 0)
+        self._list_layout.setSpacing(0)
+        self._list_layout.addStretch()
+        self._scroll.setWidget(self._list_widget)
+
+    # -- drag --
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton and event.position().y() <= HEADER_HEIGHT:
+            self._drag_pos = event.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if self._drag_pos is not None:
+            delta = event.globalPosition().toPoint() - self._drag_pos
+            self.move(self.pos() + delta)
+            self._drag_pos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        if self._drag_pos is not None:
+            self._settings.save_window_position(self.x(), self.y())
+        self._drag_pos = None
+
+    # -- keyboard --
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self._on_collapse_click()
+
+    # -- collapse / expand --
+
+    def _on_collapse_click(self):
+        if self._collapsed:
+            return
+        self._collapsed = True
+        self._settings.save_window_position(self.x(), self.y())
+        self._settings.save_collapsed(True)
+        self.hide()
+        self._tab = CollapsedTab()
+        self._tab.snap_to_edge(self.x(), self.y())
+        self._tab.expand_requested.connect(self._on_expand)
+        if self._instances:
+            self._update_tab_dot()
+        self._tab.show()
+
+    def _on_expand(self):
+        if self._tab:
+            self._tab.hide()
+            self._tab.deleteLater()
+            self._tab = None
+        self._collapsed = False
+        self._settings.save_collapsed(False)
+        self.show()
+
+    def _on_close(self):
+        if self._collapsed and self._tab:
+            self._tab.hide()
+        QApplication.quit()
+
+    # -- display --
 
     def update_instances(self, instances):
         self._instances = instances
 
-        for w in self._list_frame.winfo_children():
-            w.destroy()
-
-        count = min(len(instances), MAX_VISIBLE_ROWS)
-        self._resize_expanded(count)
+        # clear old rows (keep stretch at end)
+        while self._list_layout.count() > 1:
+            item = self._list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
         for i, inst in enumerate(instances[:MAX_VISIBLE_ROWS]):
-            self._draw_row(i, inst)
+            self._list_layout.insertWidget(i, self._make_row(i, inst))
 
-        self._update_tab_dot(instances)
+        self._update_height(min(len(instances), MAX_VISIBLE_ROWS))
 
-    def _draw_row(self, i, inst):
+    def _make_row(self, i: int, inst: dict) -> QFrame:
         state = inst['state']
         cfg = STATE_CONFIG.get(state, STATE_CONFIG[InstanceState.RUNNING])
         cwd = inst.get('cwd', '')
         dir_name = cwd.rstrip('/').split('/')[-1] if cwd else '?'
+        pid = inst.get('pid', 0)
 
+        row = QFrame()
+        row.setFixedHeight(ROW_HEIGHT)
         row_bg = BG if i % 2 == 0 else '#242426'
-
-        row = tk.Frame(self._list_frame, bg=row_bg, height=ROW_HEIGHT)
-        row.pack(fill=tk.X, side=tk.TOP)
-        row.pack_propagate(False)
+        row.setStyleSheet(f'background-color: {row_bg};')
 
         # status dot
+        dot = QLabel(row)
+        dot.setFixedSize(8, 8)
+        dot.move(10, (ROW_HEIGHT - 8) // 2)
         dot_color = cfg['color']
         if state == InstanceState.WAITING and not self._blink_state:
             dot_color = row_bg
-
-        dot = tk.Canvas(row, width=22, height=ROW_HEIGHT,
-                        bg=row_bg, highlightthickness=0)
-        dot.pack(side=tk.LEFT)
-        dot.create_oval(6, (ROW_HEIGHT - 8) // 2,
-                        14, (ROW_HEIGHT + 8) // 2,
-                        fill=dot_color, outline='')
+        dot.setStyleSheet(f'background-color: {dot_color}; border-radius: 4px;')
 
         # directory name
-        lbl = tk.Label(row, text=dir_name, fg=TEXT, bg=row_bg,
-                       font=('SF Pro Text', 11), anchor=tk.W)
-        lbl.pack(side=tk.LEFT, padx=4, fill=tk.X, expand=True)
+        name_lbl = QLabel(dir_name, row)
+        name_lbl.setStyleSheet(f'color: {TEXT}; font-size: 11px; background: transparent;')
+        name_lbl.move(26, 8)
+        name_lbl.setFixedWidth(140)
 
-        # state badge
-        badge = tk.Label(row, text=cfg['label'], fg=cfg['color'], bg=row_bg,
-                         font=('PingFang SC', 9))
-        badge.pack(side=tk.RIGHT, padx=8)
+        # state label
+        state_lbl = QLabel(cfg['label'], row)
+        state_lbl.setStyleSheet(f'color: {cfg["color"]}; font-size: 9px; background: transparent;')
+        state_lbl.move(WINDOW_WIDTH - 60, 10)
 
-    def _update_tab_dot(self, instances):
+        # tooltip: full path + PID
+        row.setToolTip(f'{cwd}\nPID: {pid}')
+
+        return row
+
+    def _update_height(self, row_count):
+        rows = max(1, row_count)
+        h = HEADER_HEIGHT + rows * ROW_HEIGHT
+        self.setFixedHeight(h)
+        self._scroll.setGeometry(0, HEADER_HEIGHT, WINDOW_WIDTH, rows * ROW_HEIGHT)
+
+    def _update_tab_dot(self):
+        if not self._tab:
+            return
         priority = [InstanceState.ERROR, InstanceState.WAITING,
                     InstanceState.RUNNING, InstanceState.COMPLETED]
         color = '#8e8e93'
         for s in priority:
-            if any(i['state'] == s for i in instances):
+            if any(i['state'] == s for i in self._instances):
                 color = STATE_CONFIG[s]['color']
                 break
-        self._tab_dot.delete('all')
-        self._tab_dot.create_oval(1, 1, 13, 13, fill=color, outline='')
+        self._tab.set_dot_color(color)
 
     def toggle_blink(self):
         self._blink_state = not self._blink_state
         if self._instances:
             self.update_instances(self._instances)
 
-    # ==================================================================
-    # helpers
-    # ==================================================================
+    def _center(self):
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.move(screen.width() - WINDOW_WIDTH - 20, 60)
 
-    def _lift(self):
-        if self._collapsed:
-            self._collapsed_win.attributes('-topmost', True)
-            self._collapsed_win.lift()
-        else:
-            self._expanded.attributes('-topmost', True)
-            self._expanded.lift()
+    # -- lifecycle --
 
-    def _center_window(self):
-        sw = self._expanded.winfo_screenwidth()
-        x = sw - WINDOW_WIDTH - 20
-        y = 60
-        self._expanded.geometry(
-            f'{WINDOW_WIDTH}x{HEADER_HEIGHT + ROW_HEIGHT + 2}+{x}+{y}')
-        self._lift()
-
-    # ==================================================================
-    # lifecycle
-    # ==================================================================
-
-    def show(self):
-        self._expanded.deiconify()
-        self._collapsed = False
-        self._lift()
+    def show_expanded(self):
+        self.show()
 
     def is_collapsed(self):
         return self._collapsed
-
-    def is_alive(self):
-        try:
-            return self.root.winfo_exists()
-        except tk.TclError:
-            return False
-
-    def process_events(self):
-        try:
-            self.root.update()
-        except tk.TclError:
-            return
-        if not self.is_alive():
-            return
-        self._lift()
-
-    def quit(self):
-        try:
-            self.root.destroy()
-        except tk.TclError:
-            pass
