@@ -27,6 +27,7 @@ class Monitor:
         self.window = OverlayWindow()
         self.tray = TrayIcon()
         self.settings = AppSettings()
+        self._poll_timer = QTimer()
         self._blink_timer = QTimer()
 
     def run(self):
@@ -37,12 +38,10 @@ class Monitor:
         if self.settings.load_collapsed():
             self.window.hide()
             self.window._collapsed = True
-            # The collapsed tab will be created on first poll
 
-        # poll timer
-        poll_timer = QTimer()
-        poll_timer.timeout.connect(self._poll)
-        poll_timer.start(POLL_INTERVAL)
+        # poll timer — stored as instance attr to prevent GC
+        self._poll_timer.timeout.connect(self._poll)
+        self._poll_timer.start(POLL_INTERVAL)
 
         # blink timer
         self._blink_timer.timeout.connect(self._on_blink)
