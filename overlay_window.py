@@ -1,11 +1,10 @@
 """PyQt6 overlay window for displaying Claude Code instance statuses."""
 
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QFrame, QApplication,
+    QWidget, QLabel, QVBoxLayout, QScrollArea, QFrame, QApplication,
 )
-from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal
-from PyQt6.QtGui import QFont, QMouseEvent
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QMouseEvent
 
 from state_engine import InstanceState
 from settings import AppSettings
@@ -26,10 +25,10 @@ TEXT_SEC = '#98989d'
 BORDER = '#38383a'
 
 STATE_CONFIG = {
-    InstanceState.RUNNING:  {'color': '#30d158', 'bg': 'rgba(48,209,88,0.15)', 'label': '运行中'},
-    InstanceState.WAITING:  {'color': '#ffd60a', 'bg': 'rgba(255,214,10,0.15)', 'label': '等待确认'},
-    InstanceState.COMPLETED:{'color': '#8e8e93', 'bg': 'rgba(142,142,147,0.10)', 'label': '已完成'},
-    InstanceState.ERROR:    {'color': '#ff453a', 'bg': 'rgba(255,69,58,0.15)', 'label': '出错'},
+    InstanceState.RUNNING:  {'color': '#30d158', 'label': '运行中'},
+    InstanceState.WAITING:  {'color': '#ffd60a', 'label': '等待确认'},
+    InstanceState.COMPLETED:{'color': '#8e8e93', 'label': '已完成'},
+    InstanceState.ERROR:    {'color': '#ff453a', 'label': '出错'},
 }
 
 STYLE = f"""
@@ -44,6 +43,15 @@ QWidget#titleBar {{
     border-top-right-radius: 8px;
 }}
 """
+
+
+class ClickableLabel(QLabel):
+    """QLabel that emits clicked signal on mouse press."""
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
 
 
 class CollapsedTab(QWidget):
@@ -137,10 +145,8 @@ class OverlayWindow(QWidget):
         self._build_title_bar()
         self._build_list_area()
 
-        # keyboard shortcut: ESC to collapse
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        # restore position or use default
         saved_pos = self._settings.load_window_position()
         if saved_pos:
             self.move(*saved_pos)
@@ -159,19 +165,19 @@ class OverlayWindow(QWidget):
         title.setStyleSheet(f'color: {TEXT}; font-size: 10px; font-weight: bold; background: transparent;')
         title.move(12, 8)
 
-        # close button (red)
-        close_btn = QLabel(bar)
+        # Close button (red) — using ClickableLabel
+        close_btn = ClickableLabel(bar)
         close_btn.setGeometry(WINDOW_WIDTH - 26, 10, 12, 12)
         close_btn.setStyleSheet('background-color: #ff453a; border-radius: 6px;')
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.mousePressEvent = lambda e: self._on_close()
+        close_btn.clicked.connect(self._on_close)
 
-        # collapse button (yellow)
-        coll_btn = QLabel(bar)
+        # Collapse button (yellow) — using ClickableLabel
+        coll_btn = ClickableLabel(bar)
         coll_btn.setGeometry(WINDOW_WIDTH - 44, 10, 12, 12)
         coll_btn.setStyleSheet('background-color: #ffd60a; border-radius: 6px;')
         coll_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        coll_btn.mousePressEvent = lambda e: self._on_collapse_click()
+        coll_btn.clicked.connect(self._on_collapse_click)
 
         self._title_bar = bar
 
@@ -237,6 +243,7 @@ class OverlayWindow(QWidget):
         self._collapsed = False
         self._settings.save_collapsed(False)
         self.show()
+        self._keep_on_top()
 
     def _on_close(self):
         if self._collapsed and self._tab:
@@ -248,7 +255,6 @@ class OverlayWindow(QWidget):
     def update_instances(self, instances):
         self._instances = instances
 
-        # clear old rows (keep stretch at end)
         while self._list_layout.count() > 1:
             item = self._list_layout.takeAt(0)
             if item.widget():
@@ -258,6 +264,7 @@ class OverlayWindow(QWidget):
             self._list_layout.insertWidget(i, self._make_row(i, inst))
 
         self._update_height(min(len(instances), MAX_VISIBLE_ROWS))
+        self._keep_on_top()
 
     def _make_row(self, i: int, inst: dict) -> QFrame:
         state = inst['state']
@@ -291,7 +298,7 @@ class OverlayWindow(QWidget):
         state_lbl.setStyleSheet(f'color: {cfg["color"]}; font-size: 9px; background: transparent;')
         state_lbl.move(WINDOW_WIDTH - 60, 10)
 
-        # tooltip: full path + PID
+        # tooltip
         row.setToolTip(f'{cwd}\nPID: {pid}')
 
         return row
@@ -314,6 +321,11 @@ class OverlayWindow(QWidget):
                 break
         self._tab.set_dot_color(color)
 
+    def _keep_on_top(self):
+        """Force window to top on macOS."""
+        self.raise_()
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+
     def toggle_blink(self):
         self._blink_state = not self._blink_state
         if self._instances:
@@ -327,6 +339,7 @@ class OverlayWindow(QWidget):
 
     def show_expanded(self):
         self.show()
+        self._keep_on_top()
 
     def is_collapsed(self):
         return self._collapsed

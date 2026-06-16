@@ -26,7 +26,7 @@ class TrayIcon:
         self._tray.setContextMenu(self._menu)
 
     def _update_icon(self, color: str):
-        """Draw a circle with 'CC' text as tray icon."""
+        """Draw a circle with 'M' text as tray icon."""
         pixmap = QPixmap(22, 22)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
@@ -35,8 +35,11 @@ class TrayIcon:
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(1, 1, 20, 20)
         painter.setPen(QColor('#1c1c1e'))
-        painter.setFont(painter.font())
-        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, 'CC')
+        font = painter.font()
+        font.setPointSize(11)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, 'M')
         painter.end()
         self._tray.setIcon(QIcon(pixmap))
 
